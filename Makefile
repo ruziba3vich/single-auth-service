@@ -1,4 +1,4 @@
-.PHONY: all build run test clean docker-build docker-up docker-down migrate lint
+.PHONY: all build run test clean docker-build docker-up docker-down migrate lint postman
 
 # Variables
 BINARY_NAME=auth-service
@@ -92,6 +92,16 @@ generate-client:
 		-H "Content-Type: application/json" \
 		-d '{"name":"Test App","redirect_uris":["http://localhost:3000/callback"],"grant_types":["authorization_code","refresh_token"],"is_confidential":true}'
 
+## postman: Generate Postman collection from handlers
+postman:
+	@echo "Generating Postman collection..."
+	$(GOCMD) run ./scripts/postman-gen/main.go \
+		-path ./internal/interfaces/http/handlers \
+		-output postman_collection.json \
+		-name "$(POSTMAN_COLLECTION_NAME)" \
+		-base-url "$(POSTMAN_BASE_URL)"
+	@echo "Generated: postman_collection.json"
+
 ## help: Display this help
 help:
 	@echo "Usage: make [target]"
@@ -104,3 +114,7 @@ DB_HOST ?= localhost
 DB_USER ?= auth
 DB_PASSWORD ?= auth_secret_password
 DB_NAME ?= auth_service
+
+# Postman collection settings
+POSTMAN_COLLECTION_NAME ?= Single Auth Service API
+POSTMAN_BASE_URL ?= http://localhost:8080
