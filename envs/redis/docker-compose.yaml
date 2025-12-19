@@ -1,0 +1,34 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    env_file:
+      - .env
+    command: >
+      sh -c '
+        if [ -n "$REDIS_PASSWORD" ]; then
+          redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"
+        else
+          redis-server --appendonly yes
+        fi
+      '
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - auth-network
+
+volumes:
+  redis_data:
+
+networks:
+  auth-network:
+    name: auth-network
+    driver: bridge
