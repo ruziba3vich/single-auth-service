@@ -39,6 +39,9 @@ Thumbs.db
 /bin/
 /dist/
 
+# Generated files
+postman_collection.json
+
 # Temporary files
 /tmp/
 *.tmp
