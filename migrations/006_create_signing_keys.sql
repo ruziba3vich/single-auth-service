@@ -16,9 +16,8 @@ CREATE TABLE IF NOT EXISTS signing_keys (
 CREATE INDEX IF NOT EXISTS idx_signing_keys_active ON signing_keys (active)
     WHERE active = TRUE;
 
--- Index for JWKS endpoint (all valid keys)
-CREATE INDEX IF NOT EXISTS idx_signing_keys_expires ON signing_keys (expires_at DESC)
-    WHERE expires_at > NOW();
+-- Index for JWKS endpoint (filtering by expiration done at query time)
+CREATE INDEX IF NOT EXISTS idx_signing_keys_expires ON signing_keys (expires_at DESC);
 
 -- Ensure only one active key at a time using a partial unique index
 CREATE UNIQUE INDEX IF NOT EXISTS idx_signing_keys_single_active ON signing_keys (active)

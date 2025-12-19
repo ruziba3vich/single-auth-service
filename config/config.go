@@ -99,7 +99,7 @@ func Load() *Config {
 			Host:            getEnv("DB_HOST", "localhost"),
 			Port:            getEnvInt("DB_PORT", 5432),
 			User:            getEnv("DB_USER", "auth"),
-			Password:        getEnv("DB_PASSWORD", ""),
+			Password:        getEnv("DB_PASSWORD", "auth_secret_password"),
 			Database:        getEnv("DB_NAME", "auth_service"),
 			SSLMode:         getEnv("DB_SSL_MODE", "disable"),
 			MaxOpenConns:    getEnvInt("DB_MAX_OPEN_CONNS", 25),
@@ -109,7 +109,7 @@ func Load() *Config {
 		Redis: RedisConfig{
 			Host:         getEnv("REDIS_HOST", "localhost"),
 			Port:         getEnvInt("REDIS_PORT", 6379),
-			Password:     getEnv("REDIS_PASSWORD", ""),
+			Password:     getEnv("REDIS_PASSWORD", "redis-pwd"),
 			DB:           getEnvInt("REDIS_DB", 0),
 			PoolSize:     getEnvInt("REDIS_POOL_SIZE", 10),
 			MinIdleConns: getEnvInt("REDIS_MIN_IDLE_CONNS", 5),
