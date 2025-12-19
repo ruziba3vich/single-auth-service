@@ -2,172 +2,102 @@ package postgres
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/ruziba3vich/single-auth-service/internal/domain/user"
+	"github.com/ruziba3vich/single-auth-service/internal/infrastructure/persistence/postgres/users"
 	apperrors "github.com/ruziba3vich/single-auth-service/pkg/errors"
 )
 
-// UserRepository implements user.Repository using PostgreSQL.
 type UserRepository struct {
-	db *DB
+	queries *users.Queries
 }
 
-// NewUserRepository creates a new PostgreSQL user repository.
 func NewUserRepository(db *DB) *UserRepository {
-	return &UserRepository{db: db}
+	return &UserRepository{
+		queries: users.New(db.Pool),
+	}
 }
 
-// Create persists a new user.
 func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
-	query := `
-		INSERT INTO users (id, email, password_hash, email_verified, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`
-
-	_, err := r.db.Pool.Exec(ctx, query,
-		u.ID,
-		u.Email,
-		u.PasswordHash,
-		u.EmailVerified,
-		u.CreatedAt,
-		u.UpdatedAt,
-	)
-
+	err := r.queries.CreateUser(ctx, users.CreateUserParams{
+		ID:            toPgUUID(u.ID),
+		Email:         u.Email,
+		PasswordHash:  u.PasswordHash,
+		EmailVerified: u.EmailVerified,
+		CreatedAt:     pgtype.Timestamptz{Time: u.CreatedAt, Valid: true},
+		UpdatedAt:     pgtype.Timestamptz{Time: u.UpdatedAt, Valid: true},
+	})
 	if err != nil {
-		// Check for unique constraint violation
 		if isPgUniqueViolation(err) {
 			return apperrors.ErrUserAlreadyExists
 		}
 		return apperrors.Wrap(err, "failed to create user")
 	}
-
 	return nil
 }
 
-// GetByID retrieves a user by ID.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
-	query := `
-		SELECT id, email, password_hash, email_verified, created_at, updated_at
-		FROM users
-		WHERE id = $1
-	`
-
-	u := &user.User{}
-	err := r.db.Pool.QueryRow(ctx, query, id).Scan(
-		&u.ID,
-		&u.Email,
-		&u.PasswordHash,
-		&u.EmailVerified,
-		&u.CreatedAt,
-		&u.UpdatedAt,
-	)
-
+	row, err := r.queries.GetUserByID(ctx, toPgUUID(id))
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if isNoRows(err) {
 			return nil, apperrors.ErrUserNotFound
 		}
 		return nil, apperrors.Wrap(err, "failed to get user by ID")
 	}
-
-	return u, nil
+	return r.toDomainUser(row), nil
 }
 
-// GetByEmail retrieves a user by email.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
-	query := `
-		SELECT id, email, password_hash, email_verified, created_at, updated_at
-		FROM users
-		WHERE email = $1
-	`
-
-	u := &user.User{}
-	err := r.db.Pool.QueryRow(ctx, query, email).Scan(
-		&u.ID,
-		&u.Email,
-		&u.PasswordHash,
-		&u.EmailVerified,
-		&u.CreatedAt,
-		&u.UpdatedAt,
-	)
-
+	row, err := r.queries.GetUserByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if isNoRows(err) {
 			return nil, apperrors.ErrUserNotFound
 		}
 		return nil, apperrors.Wrap(err, "failed to get user by email")
 	}
-
-	return u, nil
+	return r.toDomainUser(row), nil
 }
 
-// Update persists changes to a user.
 func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
-	query := `
-		UPDATE users
-		SET email = $2, password_hash = $3, email_verified = $4, updated_at = $5
-		WHERE id = $1
-	`
-
-	result, err := r.db.Pool.Exec(ctx, query,
-		u.ID,
-		u.Email,
-		u.PasswordHash,
-		u.EmailVerified,
-		u.UpdatedAt,
-	)
-
+	err := r.queries.UpdateUser(ctx, users.UpdateUserParams{
+		ID:            toPgUUID(u.ID),
+		Email:         u.Email,
+		PasswordHash:  u.PasswordHash,
+		EmailVerified: u.EmailVerified,
+		UpdatedAt:     pgtype.Timestamptz{Time: u.UpdatedAt, Valid: true},
+	})
 	if err != nil {
 		return apperrors.Wrap(err, "failed to update user")
 	}
-
-	if result.RowsAffected() == 0 {
-		return apperrors.ErrUserNotFound
-	}
-
 	return nil
 }
 
-// Delete removes a user.
 func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM users WHERE id = $1`
-
-	result, err := r.db.Pool.Exec(ctx, query, id)
+	err := r.queries.DeleteUser(ctx, toPgUUID(id))
 	if err != nil {
 		return apperrors.Wrap(err, "failed to delete user")
 	}
-
-	if result.RowsAffected() == 0 {
-		return apperrors.ErrUserNotFound
-	}
-
 	return nil
 }
 
-// ExistsByEmail checks if a user with the given email exists.
 func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)`
-
-	var exists bool
-	err := r.db.Pool.QueryRow(ctx, query, email).Scan(&exists)
+	exists, err := r.queries.ExistsUserByEmail(ctx, email)
 	if err != nil {
 		return false, apperrors.Wrap(err, "failed to check user existence")
 	}
-
 	return exists, nil
 }
 
-// isPgUniqueViolation checks if the error is a PostgreSQL unique constraint violation.
-func isPgUniqueViolation(err error) bool {
-	// pgx v5 uses pgconn.PgError
-	var pgErr interface {
-		SQLState() string
+func (r *UserRepository) toDomainUser(row users.User) *user.User {
+	return &user.User{
+		ID:            fromPgUUID(row.ID),
+		Email:         row.Email,
+		PasswordHash:  row.PasswordHash,
+		EmailVerified: row.EmailVerified,
+		CreatedAt:     row.CreatedAt.Time,
+		UpdatedAt:     row.UpdatedAt.Time,
 	}
-	if errors.As(err, &pgErr) {
-		return pgErr.SQLState() == "23505" // unique_violation
-	}
-	return false
 }

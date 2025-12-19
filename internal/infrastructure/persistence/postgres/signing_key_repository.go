@@ -2,117 +2,77 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/ruziba3vich/single-auth-service/internal/domain/keys"
+	domainkeys "github.com/ruziba3vich/single-auth-service/internal/domain/keys"
 	"github.com/ruziba3vich/single-auth-service/internal/infrastructure/crypto"
+	"github.com/ruziba3vich/single-auth-service/internal/infrastructure/persistence/postgres/keys"
 	apperrors "github.com/ruziba3vich/single-auth-service/pkg/errors"
 )
 
-// SigningKeyRepository implements keys.Repository using PostgreSQL.
 type SigningKeyRepository struct {
-	db *DB
+	db      *DB
+	queries *keys.Queries
 }
 
-// NewSigningKeyRepository creates a new PostgreSQL signing key repository.
 func NewSigningKeyRepository(db *DB) *SigningKeyRepository {
-	return &SigningKeyRepository{db: db}
+	return &SigningKeyRepository{
+		db:      db,
+		queries: keys.New(db.Pool),
+	}
 }
 
-// Create persists a new signing key.
-func (r *SigningKeyRepository) Create(ctx context.Context, key *keys.SigningKey) error {
-	query := `
-		INSERT INTO signing_keys (kid, private_key, public_key, algorithm, active, created_at, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`
-
-	_, err := r.db.Pool.Exec(ctx, query,
-		key.KID,
-		key.PrivateKeyPEM,
-		key.PublicKeyPEM,
-		key.Algorithm,
-		key.Active,
-		key.CreatedAt,
-		key.ExpiresAt,
-	)
-
+func (r *SigningKeyRepository) Create(ctx context.Context, key *domainkeys.SigningKey) error {
+	err := r.queries.CreateSigningKey(ctx, keys.CreateSigningKeyParams{
+		Kid:        key.KID,
+		PrivateKey: key.PrivateKeyPEM,
+		PublicKey:  key.PublicKeyPEM,
+		Algorithm:  key.Algorithm,
+		Active:     key.Active,
+		CreatedAt:  pgtype.Timestamptz{Time: key.CreatedAt, Valid: true},
+		ExpiresAt:  pgtype.Timestamptz{Time: key.ExpiresAt, Valid: true},
+	})
 	if err != nil {
 		if isPgUniqueViolation(err) {
 			return apperrors.Wrap(err, "key already exists")
 		}
 		return apperrors.Wrap(err, "failed to create signing key")
 	}
-
 	return nil
 }
 
-// GetByKID retrieves a key by Key ID.
-func (r *SigningKeyRepository) GetByKID(ctx context.Context, kid string) (*keys.SigningKey, error) {
-	query := `
-		SELECT kid, private_key, public_key, algorithm, active, created_at, expires_at
-		FROM signing_keys
-		WHERE kid = $1
-	`
-
-	return r.scanKey(r.db.Pool.QueryRow(ctx, query, kid))
+func (r *SigningKeyRepository) GetByKID(ctx context.Context, kid string) (*domainkeys.SigningKey, error) {
+	row, err := r.queries.GetSigningKeyByKID(ctx, kid)
+	if err != nil {
+		if isNoRows(err) {
+			return nil, apperrors.ErrKeyNotFound
+		}
+		return nil, apperrors.Wrap(err, "failed to get key by KID")
+	}
+	return r.toDomainKey(row)
 }
 
-// GetActive retrieves the currently active signing key.
-func (r *SigningKeyRepository) GetActive(ctx context.Context) (*keys.SigningKey, error) {
-	query := `
-		SELECT kid, private_key, public_key, algorithm, active, created_at, expires_at
-		FROM signing_keys
-		WHERE active = true AND expires_at > $1
-		LIMIT 1
-	`
-
-	key, err := r.scanKey(r.db.Pool.QueryRow(ctx, query, time.Now().UTC()))
+func (r *SigningKeyRepository) GetActive(ctx context.Context) (*domainkeys.SigningKey, error) {
+	row, err := r.queries.GetActiveSigningKey(ctx, pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true})
 	if err != nil {
-		if apperrors.Is(err, apperrors.ErrKeyNotFound) {
+		if isNoRows(err) {
 			return nil, apperrors.ErrNoActiveKey
 		}
-		return nil, err
+		return nil, apperrors.Wrap(err, "failed to get active key")
 	}
-
-	return key, nil
+	return r.toDomainKey(row)
 }
 
-// GetAll retrieves all valid (non-expired) keys for JWKS.
-func (r *SigningKeyRepository) GetAll(ctx context.Context) ([]*keys.SigningKey, error) {
-	query := `
-		SELECT kid, private_key, public_key, algorithm, active, created_at, expires_at
-		FROM signing_keys
-		WHERE expires_at > $1
-		ORDER BY created_at DESC
-	`
-
-	rows, err := r.db.Pool.Query(ctx, query, time.Now().UTC())
+func (r *SigningKeyRepository) GetAll(ctx context.Context) ([]*domainkeys.SigningKey, error) {
+	rows, err := r.queries.GetAllValidSigningKeys(ctx, pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true})
 	if err != nil {
 		return nil, apperrors.Wrap(err, "failed to query signing keys")
 	}
-	defer rows.Close()
-
-	var signingKeys []*keys.SigningKey
-	for rows.Next() {
-		key, err := r.scanKeyFromRows(rows)
-		if err != nil {
-			return nil, err
-		}
-		signingKeys = append(signingKeys, key)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Wrap(err, "error iterating keys")
-	}
-
-	return signingKeys, nil
+	return r.toDomainKeys(rows)
 }
 
-// SetActive marks a key as active and deactivates others.
-// This is done in a transaction to ensure consistency.
 func (r *SigningKeyRepository) SetActive(ctx context.Context, kid string) error {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
@@ -120,20 +80,14 @@ func (r *SigningKeyRepository) SetActive(ctx context.Context, kid string) error 
 	}
 	defer tx.Rollback(ctx)
 
-	// Deactivate all keys
-	_, err = tx.Exec(ctx, `UPDATE signing_keys SET active = false WHERE active = true`)
-	if err != nil {
+	qtx := r.queries.WithTx(tx)
+
+	if err := qtx.DeactivateAllSigningKeys(ctx); err != nil {
 		return apperrors.Wrap(err, "failed to deactivate keys")
 	}
 
-	// Activate the specified key
-	result, err := tx.Exec(ctx, `UPDATE signing_keys SET active = true WHERE kid = $1`, kid)
-	if err != nil {
+	if err := qtx.ActivateSigningKey(ctx, kid); err != nil {
 		return apperrors.Wrap(err, "failed to activate key")
-	}
-
-	if result.RowsAffected() == 0 {
-		return apperrors.ErrKeyNotFound
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -143,91 +97,53 @@ func (r *SigningKeyRepository) SetActive(ctx context.Context, kid string) error 
 	return nil
 }
 
-// Delete removes a key.
 func (r *SigningKeyRepository) Delete(ctx context.Context, kid string) error {
-	query := `DELETE FROM signing_keys WHERE kid = $1`
-
-	result, err := r.db.Pool.Exec(ctx, query, kid)
+	err := r.queries.DeleteSigningKey(ctx, kid)
 	if err != nil {
 		return apperrors.Wrap(err, "failed to delete key")
 	}
-
-	if result.RowsAffected() == 0 {
-		return apperrors.ErrKeyNotFound
-	}
-
 	return nil
 }
 
-// DeleteExpired removes expired keys.
 func (r *SigningKeyRepository) DeleteExpired(ctx context.Context) (int64, error) {
-	query := `DELETE FROM signing_keys WHERE expires_at < $1`
-
-	result, err := r.db.Pool.Exec(ctx, query, time.Now().UTC())
+	count, err := r.queries.DeleteExpiredSigningKeys(ctx, pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true})
 	if err != nil {
 		return 0, apperrors.Wrap(err, "failed to delete expired keys")
 	}
-
-	return result.RowsAffected(), nil
+	return count, nil
 }
 
-// scanKey scans a single key from a row.
-func (r *SigningKeyRepository) scanKey(row pgx.Row) (*keys.SigningKey, error) {
-	key := &keys.SigningKey{}
+func (r *SigningKeyRepository) toDomainKey(row keys.SigningKey) (*domainkeys.SigningKey, error) {
+	key := &domainkeys.SigningKey{
+		KID:           row.Kid,
+		PrivateKeyPEM: row.PrivateKey,
+		PublicKeyPEM:  row.PublicKey,
+		Algorithm:     row.Algorithm,
+		Active:        row.Active,
+		CreatedAt:     row.CreatedAt.Time,
+		ExpiresAt:     row.ExpiresAt.Time,
+	}
 
-	err := row.Scan(
-		&key.KID,
-		&key.PrivateKeyPEM,
-		&key.PublicKeyPEM,
-		&key.Algorithm,
-		&key.Active,
-		&key.CreatedAt,
-		&key.ExpiresAt,
-	)
+	if err := r.parseKeys(key); err != nil {
+		return nil, err
+	}
 
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apperrors.ErrKeyNotFound
+	return key, nil
+}
+
+func (r *SigningKeyRepository) toDomainKeys(rows []keys.SigningKey) ([]*domainkeys.SigningKey, error) {
+	result := make([]*domainkeys.SigningKey, 0, len(rows))
+	for _, row := range rows {
+		key, err := r.toDomainKey(row)
+		if err != nil {
+			return nil, err
 		}
-		return nil, apperrors.Wrap(err, "failed to scan key")
+		result = append(result, key)
 	}
-
-	// Parse the PEM keys
-	if err := r.parseKeys(key); err != nil {
-		return nil, err
-	}
-
-	return key, nil
+	return result, nil
 }
 
-// scanKeyFromRows scans a key from rows iterator.
-func (r *SigningKeyRepository) scanKeyFromRows(rows pgx.Rows) (*keys.SigningKey, error) {
-	key := &keys.SigningKey{}
-
-	err := rows.Scan(
-		&key.KID,
-		&key.PrivateKeyPEM,
-		&key.PublicKeyPEM,
-		&key.Algorithm,
-		&key.Active,
-		&key.CreatedAt,
-		&key.ExpiresAt,
-	)
-
-	if err != nil {
-		return nil, apperrors.Wrap(err, "failed to scan key")
-	}
-
-	// Parse the PEM keys
-	if err := r.parseKeys(key); err != nil {
-		return nil, err
-	}
-
-	return key, nil
-}
-
-// parseKeys parses PEM-encoded keys into RSA key structs.
-func (r *SigningKeyRepository) parseKeys(key *keys.SigningKey) error {
+func (r *SigningKeyRepository) parseKeys(key *domainkeys.SigningKey) error {
 	privateKey, err := crypto.ParsePrivateKey(key.PrivateKeyPEM)
 	if err != nil {
 		return apperrors.Wrap(err, "failed to parse private key")
