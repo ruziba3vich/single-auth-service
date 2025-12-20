@@ -1,0 +1,41 @@
+# OpenID Connect Discovery Endpoints
+/.well-known/openid-configuration:
+  get:
+    tags:
+      - OIDC
+    summary: OpenID Connect discovery document
+    description: Returns the OIDC discovery document containing endpoint URLs and supported features.
+    operationId: getOpenIDConfiguration
+    responses:
+      '200':
+        description: OIDC discovery document
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/OpenIDConfiguration'
+
+/jwks.json:
+  get:
+    tags:
+      - OIDC
+    summary: JSON Web Key Set
+    description: Returns the public keys used to verify JWT signatures.
+    operationId: getJWKS
+    responses:
+      '200':
+        description: JWKS document
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+              example: 'public, max-age=3600'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/JWKS'
+      '500':
+        description: Server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'

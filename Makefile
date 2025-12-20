@@ -1,4 +1,4 @@
-.PHONY: all build run test clean docker-build docker-up docker-down migrate lint postman
+.PHONY: all build run test clean docker-build docker-up docker-down migrate lint postman openapi openapi-validate openapi-gen
 
 # Variables
 BINARY_NAME=auth-service
@@ -118,3 +118,33 @@ DB_NAME ?= auth_service
 # Postman collection settings
 POSTMAN_COLLECTION_NAME ?= Single Auth Service API
 POSTMAN_BASE_URL ?= http://localhost:8080
+
+# OpenAPI settings
+OPENAPI_INPUT ?= api/openapi.yaml
+OPENAPI_OUTPUT_JSON ?= api/openapi.json
+
+## openapi: Generate OpenAPI JSON from YAML specification
+openapi:
+	@echo "Generating OpenAPI specification..."
+	$(GOCMD) run ./scripts/openapi-gen/main.go \
+		-input $(OPENAPI_INPUT) \
+		-output $(OPENAPI_OUTPUT_JSON) \
+		-format json
+	@echo "Generated: $(OPENAPI_OUTPUT_JSON)"
+
+## openapi-validate: Validate OpenAPI specification
+openapi-validate:
+	@echo "Validating OpenAPI specification..."
+	$(GOCMD) run ./scripts/openapi-gen/main.go \
+		-input $(OPENAPI_INPUT) \
+		-validate
+
+## openapi-gen: Generate Go types, server interface, and client from OpenAPI spec
+openapi-gen: openapi
+	@echo "Generating Go code from OpenAPI specification..."
+	oapi-codegen -generate types,gin,client,spec \
+		-package generated \
+		-o internal/generated/openapi.go \
+		$(OPENAPI_OUTPUT_JSON)
+	@echo "Generated: internal/generated/openapi.go"
+	$(GOMOD) tidy

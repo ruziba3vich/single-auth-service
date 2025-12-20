@@ -1,0 +1,35 @@
+# OAuth Client Management Endpoints
+/oauth/client:
+  post:
+    tags:
+      - Clients
+    summary: Create OAuth client
+    description: |
+      Registers a new OAuth client.
+      The client_secret is only returned once at creation time.
+    operationId: createClient
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreateClientRequest'
+    responses:
+      '201':
+        description: Client created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/CreateClientResponse'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+      '500':
+        description: Server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'

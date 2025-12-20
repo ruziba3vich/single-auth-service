@@ -1,0 +1,89 @@
+# User Authentication Endpoints
+/auth/register:
+  post:
+    tags:
+      - Auth
+    summary: Register a new user
+    description: Creates a new user account with email and password.
+    operationId: register
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/RegisterRequest'
+    responses:
+      '201':
+        description: User registered successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RegisterResponse'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+      '409':
+        description: User already exists
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+
+/auth/login:
+  post:
+    tags:
+      - Auth
+    summary: User login
+    description: Authenticates a user and returns device-bound tokens.
+    operationId: login
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/LoginRequest'
+    responses:
+      '200':
+        description: Login successful
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LoginResponse'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+      '401':
+        description: Invalid credentials
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+
+/auth/logout:
+  post:
+    tags:
+      - Auth
+    summary: Logout current device
+    description: Logs out the current device. Requires X-Device-ID header.
+    operationId: logout
+    parameters:
+      - $ref: '../components/parameters.yaml#/DeviceID'
+    responses:
+      '200':
+        description: Logged out successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MessageResponse'
+      '400':
+        description: Device ID required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'

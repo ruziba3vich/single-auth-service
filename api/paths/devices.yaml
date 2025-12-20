@@ -1,0 +1,122 @@
+# Device Management Endpoints
+/devices:
+  get:
+    tags:
+      - Devices
+    summary: List user devices
+    description: Returns all active devices for the authenticated user.
+    operationId: listDevices
+    security:
+      - BearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/DeviceID'
+    responses:
+      '200':
+        description: List of devices
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ListDevicesResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+
+/logout/device/{device_id}:
+  post:
+    tags:
+      - Devices
+    summary: Logout specific device
+    description: Logs out a specific device by its ID.
+    operationId: logoutDevice
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: device_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: The device ID to logout
+    responses:
+      '200':
+        description: Device logged out
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MessageResponse'
+      '400':
+        description: Invalid device ID
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+      '404':
+        description: Device not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+
+/logout/others:
+  post:
+    tags:
+      - Devices
+    summary: Logout all other devices
+    description: Logs out all devices except the current one.
+    operationId: logoutAllOthers
+    security:
+      - BearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/DeviceID'
+    responses:
+      '200':
+        description: All other devices logged out
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MessageResponse'
+      '400':
+        description: Device ID required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+
+/logout/all:
+  post:
+    tags:
+      - Devices
+    summary: Logout all devices
+    description: Logs out all devices including the current one.
+    operationId: logoutAll
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: All devices logged out
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MessageResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'

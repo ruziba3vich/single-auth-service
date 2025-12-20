@@ -1,0 +1,9 @@
+# Shared Parameters
+DeviceID:
+  name: X-Device-ID
+  in: header
+  required: false
+  schema:
+    type: string
+    format: uuid
+  description: Device identifier for device-bound operations

@@ -41,6 +41,8 @@ Thumbs.db
 
 # Generated files
 postman_collection.json
+api/openapi.json
+# internal/generated/
 
 # Temporary files
 /tmp/

@@ -836,6 +836,156 @@ Rotating refresh token:
 4. User re-authenticates, attacker blocked
 ```
 
+### What Are Redirect URIs (Callbacks)? Why Are They Needed?
+
+**Common Confusion**: The `redirect_uris` in client registration are **NOT endpoints in this auth service**. They are URLs in **your client application** where the auth service will redirect users after authentication.
+
+#### The OAuth Authorization Flow
+
+```
+┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+│  Your App       │         │  Auth Service   │         │  User's Browser │
+│  (Client)       │         │  (This Project) │         │                 │
+└────────┬────────┘         └────────┬────────┘         └────────┬────────┘
+         │                           │                           │
+         │ 1. User clicks "Login"    │                           │
+         │───────────────────────────────────────────────────────>│
+         │                           │                           │
+         │                           │ 2. Redirect to /authorize │
+         │                           │   with redirect_uri=      │
+         │                           │   https://yourapp.com/    │
+         │                           │   callback                │
+         │                           │<──────────────────────────│
+         │                           │                           │
+         │                           │ 3. User logs in, consents │
+         │                           │<─────────────────────────>│
+         │                           │                           │
+         │ 4. Redirect to YOUR app   │                           │
+         │    https://yourapp.com/   │                           │
+         │    callback?code=abc123   │                           │
+         │<──────────────────────────│                           │
+         │                           │                           │
+         │ 5. Exchange code for      │                           │
+         │    tokens at /token       │                           │
+         │──────────────────────────>│                           │
+         │                           │                           │
+         │ 6. Return tokens          │                           │
+         │<──────────────────────────│                           │
+         │                           │                           │
+```
+
+#### Why Redirect URIs Must Be Pre-Registered
+
+**Security Requirement**: The auth service ONLY redirects to URIs that were registered when the client was created. This prevents **authorization code interception attacks**:
+
+```
+Without URI validation (DANGEROUS):
+1. Attacker tricks user: /authorize?redirect_uri=https://evil.com/steal
+2. User authenticates with real auth service
+3. Auth service redirects to evil.com with the code
+4. Attacker exchanges code for tokens → Account compromised!
+
+With URI validation (SAFE):
+1. Attacker tries: /authorize?redirect_uri=https://evil.com/steal
+2. Auth service checks: "Is evil.com in registered redirect_uris?"
+3. Answer: NO → Request rejected with "invalid_redirect_uri" error
+4. Attack prevented!
+```
+
+#### Redirect URI Examples by Platform
+
+| Platform | Example Redirect URI | Notes |
+|----------|---------------------|-------|
+| Web App | `https://myapp.com/auth/callback` | Must be HTTPS in production |
+| Mobile (iOS) | `myapp://callback` | Custom URL scheme |
+| Mobile (Android) | `myapp://callback` or `https://myapp.com/.well-known/assetlinks.json` | App Links preferred |
+| Desktop App | `http://localhost:8080/callback` | Localhost allowed for native apps |
+| SPA | `https://spa.myapp.com/auth/complete` | Same-origin recommended |
+| CLI Tool | `http://127.0.0.1:9999/callback` | Ephemeral port on localhost |
+
+#### What Your Callback Endpoint Should Do
+
+Your application's callback endpoint (e.g., `https://yourapp.com/callback`) must:
+
+```
+1. Receive the authorization code from query params
+   GET /callback?code=abc123&state=xyz789
+
+2. Verify the state matches what you sent (CSRF protection)
+
+3. Exchange the code for tokens:
+   POST /token
+   grant_type=authorization_code
+   code=abc123
+   redirect_uri=https://yourapp.com/callback  ← Must match exactly!
+   client_id=your-client-id
+   code_verifier=your-pkce-verifier
+
+4. Store the tokens securely
+
+5. Redirect user to your app's main page
+```
+
+**Example callback handler (Node.js/Express)**:
+```javascript
+app.get('/callback', async (req, res) => {
+  const { code, state } = req.query;
+
+  // Verify state matches session
+  if (state !== req.session.oauth_state) {
+    return res.status(400).send('Invalid state - possible CSRF attack');
+  }
+
+  // Exchange code for tokens
+  const response = await fetch('https://auth.example.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: 'https://yourapp.com/callback',
+      client_id: process.env.CLIENT_ID,
+      code_verifier: req.session.code_verifier
+    })
+  });
+
+  const tokens = await response.json();
+
+  // Store tokens securely
+  req.session.access_token = tokens.access_token;
+  req.session.refresh_token = tokens.refresh_token;
+  req.session.device_id = tokens.device_id;  // Important!
+
+  res.redirect('/dashboard');
+});
+```
+
+#### When You DON'T Need Redirect URIs
+
+If you're using the **direct login flow** (`POST /auth/login`), you don't need callbacks:
+
+```bash
+# Direct login - no redirects, no callbacks needed
+curl -X POST https://auth.example.com/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "pass", "client_id": "abc"}'
+
+# Response contains tokens directly - no redirect
+{"access_token": "...", "refresh_token": "...", "device_id": "..."}
+```
+
+**Use direct login when**:
+- Mobile apps with native login UI
+- CLI tools
+- Server-to-server (client credentials)
+- First-party apps where you control the login form
+
+**Use OAuth authorize flow (with callbacks) when**:
+- Third-party apps accessing your users' data
+- "Login with YourService" buttons on other sites
+- Web apps following OAuth best practices
+- You want to support SSO across multiple apps
+
 ---
 
 ## Error Response Format

@@ -1,0 +1,57 @@
+# Health Check Endpoints
+/health:
+  get:
+    tags:
+      - Health
+    summary: Service health status
+    description: Returns the health status of the service and its dependencies (database, Redis).
+    operationId: getHealth
+    responses:
+      '200':
+        description: Service is healthy
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/HealthResponse'
+      '503':
+        description: Service is unhealthy
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/HealthResponse'
+
+/ready:
+  get:
+    tags:
+      - Health
+    summary: Service readiness
+    description: Returns whether the service is ready to accept requests.
+    operationId: getReady
+    responses:
+      '200':
+        description: Service is ready
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReadyResponse'
+      '503':
+        description: Service is not ready
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReadyResponse'
+
+/live:
+  get:
+    tags:
+      - Health
+    summary: Service liveness
+    description: Returns whether the service is alive.
+    operationId: getLive
+    responses:
+      '200':
+        description: Service is alive
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LiveResponse'

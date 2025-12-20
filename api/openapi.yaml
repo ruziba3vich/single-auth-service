@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: Single Auth Service API
+  description: |
+    OAuth 2.1 and OpenID Connect authentication service with device-bound sessions.
+
+    ## Features
+    - OAuth 2.1 with mandatory PKCE
+    - OpenID Connect (OIDC) discovery
+    - Device-bound session management
+    - JWT token signing with automatic key rotation (RS256)
+    - Multi-device SSO with granular session control
+
+    ## Authentication
+    Protected endpoints require a Bearer token in the Authorization header.
+    Device-bound endpoints also require the X-Device-ID header.
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Auth
+    description: User authentication endpoints
+  - name: OAuth
+    description: OAuth 2.1 endpoints
+  - name: OIDC
+    description: OpenID Connect discovery endpoints
+  - name: Devices
+    description: Device management endpoints
+  - name: Clients
+    description: OAuth client management
+
+# Paths are loaded from separate files and bundled at build time
+# See: api/paths/*.yaml
+paths:
+  # Health Endpoints
+  /health:
+    $ref: 'paths/health.yaml#/~1health'
+  /ready:
+    $ref: 'paths/health.yaml#/~1ready'
+  /live:
+    $ref: 'paths/health.yaml#/~1live'
+
+  # OIDC Discovery Endpoints
+  /.well-known/openid-configuration:
+    $ref: 'paths/oidc.yaml#/~1.well-known~1openid-configuration'
+  /jwks.json:
+    $ref: 'paths/oidc.yaml#/~1jwks.json'
+
+  # Auth Endpoints
+  /auth/register:
+    $ref: 'paths/auth.yaml#/~1auth~1register'
+  /auth/login:
+    $ref: 'paths/auth.yaml#/~1auth~1login'
+  /auth/logout:
+    $ref: 'paths/auth.yaml#/~1auth~1logout'
+
+  # OAuth Endpoints
+  /authorize:
+    $ref: 'paths/oauth.yaml#/~1authorize'
+  /token:
+    $ref: 'paths/oauth.yaml#/~1token'
+  /token/refresh:
+    $ref: 'paths/oauth.yaml#/~1token~1refresh'
+  /token/revoke:
+    $ref: 'paths/oauth.yaml#/~1token~1revoke'
+
+  # Client Management
+  /oauth/client:
+    $ref: 'paths/clients.yaml#/~1oauth~1client'
+
+  # Device Management
+  /devices:
+    $ref: 'paths/devices.yaml#/~1devices'
+  /logout/device/{device_id}:
+    $ref: 'paths/devices.yaml#/~1logout~1device~1{device_id}'
+  /logout/others:
+    $ref: 'paths/devices.yaml#/~1logout~1others'
+  /logout/all:
+    $ref: 'paths/devices.yaml#/~1logout~1all'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: 'components/security.yaml#/BearerAuth'
+
+  parameters:
+    DeviceID:
+      $ref: 'components/parameters.yaml#/DeviceID'
+
+  schemas:
+    # Error Responses
+    ErrorResponse:
+      $ref: 'components/schemas.yaml#/ErrorResponse'
+    OAuthErrorResponse:
+      $ref: 'components/schemas.yaml#/OAuthErrorResponse'
+    MessageResponse:
+      $ref: 'components/schemas.yaml#/MessageResponse'
+
+    # Health Schemas
+    HealthResponse:
+      $ref: 'components/schemas.yaml#/HealthResponse'
+    ReadyResponse:
+      $ref: 'components/schemas.yaml#/ReadyResponse'
+    LiveResponse:
+      $ref: 'components/schemas.yaml#/LiveResponse'
+
+    # Auth Schemas
+    RegisterRequest:
+      $ref: 'components/schemas.yaml#/RegisterRequest'
+    RegisterResponse:
+      $ref: 'components/schemas.yaml#/RegisterResponse'
+    LoginRequest:
+      $ref: 'components/schemas.yaml#/LoginRequest'
+    LoginResponse:
+      $ref: 'components/schemas.yaml#/LoginResponse'
+
+    # OAuth Schemas
+    AuthorizeRequest:
+      $ref: 'components/schemas.yaml#/AuthorizeRequest'
+    AuthorizeInfoResponse:
+      $ref: 'components/schemas.yaml#/AuthorizeInfoResponse'
+    TokenRequest:
+      $ref: 'components/schemas.yaml#/TokenRequest'
+    TokenResponse:
+      $ref: 'components/schemas.yaml#/TokenResponse'
+    RefreshTokenRequest:
+      $ref: 'components/schemas.yaml#/RefreshTokenRequest'
+    RevokeTokenRequest:
+      $ref: 'components/schemas.yaml#/RevokeTokenRequest'
+
+    # Client Schemas
+    CreateClientRequest:
+      $ref: 'components/schemas.yaml#/CreateClientRequest'
+    CreateClientResponse:
+      $ref: 'components/schemas.yaml#/CreateClientResponse'
+
+    # Device Schemas
+    DeviceInfo:
+      $ref: 'components/schemas.yaml#/DeviceInfo'
+    ListDevicesResponse:
+      $ref: 'components/schemas.yaml#/ListDevicesResponse'
+
+    # OIDC Schemas
+    OpenIDConfiguration:
+      $ref: 'components/schemas.yaml#/OpenIDConfiguration'
+    JWKS:
+      $ref: 'components/schemas.yaml#/JWKS'
+    JWK:
+      $ref: 'components/schemas.yaml#/JWK'

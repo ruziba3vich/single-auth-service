@@ -1,0 +1,205 @@
+# OAuth 2.1 Endpoints
+/authorize:
+  get:
+    tags:
+      - OAuth
+    summary: Authorization endpoint
+    description: |
+      Initiates the OAuth 2.1 authorization code flow.
+      Returns authorization details for user consent.
+    operationId: authorize
+    parameters:
+      - name: response_type
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [code]
+        description: Must be 'code' for authorization code flow
+      - name: client_id
+        in: query
+        required: true
+        schema:
+          type: string
+        description: The OAuth client ID
+      - name: redirect_uri
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uri
+        description: Callback URL for authorization response
+      - name: scope
+        in: query
+        schema:
+          type: string
+        description: Space-separated list of scopes (e.g., 'openid profile email')
+      - name: state
+        in: query
+        schema:
+          type: string
+        description: Opaque value for CSRF protection
+      - name: code_challenge
+        in: query
+        required: true
+        schema:
+          type: string
+        description: PKCE code challenge (base64url-encoded SHA256 hash)
+      - name: code_challenge_method
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [S256]
+        description: Must be 'S256' for PKCE
+      - name: nonce
+        in: query
+        schema:
+          type: string
+        description: String value for ID token replay protection
+    responses:
+      '200':
+        description: Authorization details for consent
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/AuthorizeInfoResponse'
+      '302':
+        description: Redirect with error (when redirect_uri is valid)
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/OAuthErrorResponse'
+
+  post:
+    tags:
+      - OAuth
+    summary: Authorization consent
+    description: |
+      Submits user consent for authorization. Requires authentication.
+      On success, redirects to redirect_uri with authorization code.
+    operationId: authorizeConsent
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '../components/schemas.yaml#/AuthorizeRequest'
+    responses:
+      '302':
+        description: Redirect to redirect_uri with authorization code
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/OAuthErrorResponse'
+      '401':
+        description: User authentication required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+
+/token:
+  post:
+    tags:
+      - OAuth
+    summary: Token endpoint
+    description: |
+      Exchanges authorization code for tokens, refreshes tokens, or performs client credentials grant.
+
+      Supported grant types:
+      - `authorization_code`: Exchange auth code for tokens (requires code, redirect_uri, code_verifier)
+      - `refresh_token`: Refresh access token (requires refresh_token, client_id, device_id)
+      - `client_credentials`: Machine-to-machine authentication (requires client_id, client_secret)
+    operationId: token
+    requestBody:
+      required: true
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '../components/schemas.yaml#/TokenRequest'
+    responses:
+      '200':
+        description: Token response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/TokenResponse'
+      '400':
+        description: Invalid request or grant
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/OAuthErrorResponse'
+      '401':
+        description: Invalid client credentials
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/OAuthErrorResponse'
+
+/token/refresh:
+  post:
+    tags:
+      - OAuth
+    summary: Refresh token
+    description: Refreshes an access token using a refresh token.
+    operationId: refreshToken
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/RefreshTokenRequest'
+    responses:
+      '200':
+        description: New tokens issued
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/TokenResponse'
+      '400':
+        description: Invalid request or grant
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/OAuthErrorResponse'
+
+/token/revoke:
+  post:
+    tags:
+      - OAuth
+    summary: Revoke token
+    description: |
+      Revokes a token (access or refresh).
+      Per RFC 7009, always returns 200 even if token doesn't exist.
+    operationId: revokeToken
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/RevokeTokenRequest'
+    responses:
+      '200':
+        description: Token revoked (or was already invalid)
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                revoked:
+                  type: boolean
+                  example: true
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'

@@ -1,0 +1,522 @@
+# Shared Schemas
+
+# Error Responses
+ErrorResponse:
+  type: object
+  required:
+    - error
+    - error_description
+  properties:
+    error:
+      type: string
+      description: Error code
+      example: invalid_request
+    error_description:
+      type: string
+      description: Human-readable error description
+      example: Invalid email format
+
+OAuthErrorResponse:
+  type: object
+  required:
+    - error
+  properties:
+    error:
+      type: string
+      description: OAuth error code
+      enum:
+        - invalid_request
+        - invalid_client
+        - invalid_grant
+        - unauthorized_client
+        - unsupported_grant_type
+        - invalid_scope
+        - server_error
+    error_description:
+      type: string
+      description: Human-readable error description
+
+MessageResponse:
+  type: object
+  properties:
+    message:
+      type: string
+      example: Operation completed successfully
+
+# Health Schemas
+HealthResponse:
+  type: object
+  required:
+    - status
+    - checks
+  properties:
+    status:
+      type: string
+      enum: [healthy, unhealthy]
+      example: healthy
+    checks:
+      type: object
+      properties:
+        database:
+          type: string
+          enum: [healthy, unhealthy]
+        redis:
+          type: string
+          enum: [healthy, unhealthy]
+
+ReadyResponse:
+  type: object
+  properties:
+    ready:
+      type: boolean
+      example: true
+
+LiveResponse:
+  type: object
+  properties:
+    alive:
+      type: boolean
+      example: true
+
+# Auth Schemas
+RegisterRequest:
+  type: object
+  required:
+    - email
+    - password
+  properties:
+    email:
+      type: string
+      format: email
+      example: user@example.com
+    password:
+      type: string
+      format: password
+      minLength: 8
+      example: SecureP@ss123
+
+RegisterResponse:
+  type: object
+  properties:
+    user_id:
+      type: string
+      format: uuid
+      example: 550e8400-e29b-41d4-a716-446655440000
+    email:
+      type: string
+      format: email
+      example: user@example.com
+    email_verified:
+      type: boolean
+      example: false
+    created_at:
+      type: string
+      format: date-time
+
+LoginRequest:
+  type: object
+  required:
+    - email
+    - password
+    - client_id
+  properties:
+    email:
+      type: string
+      format: email
+      example: user@example.com
+    password:
+      type: string
+      format: password
+      example: SecureP@ss123
+    client_id:
+      type: string
+      description: OAuth client ID
+      example: client_abc123
+
+LoginResponse:
+  type: object
+  properties:
+    access_token:
+      type: string
+      description: JWT access token
+    token_type:
+      type: string
+      example: Bearer
+    expires_in:
+      type: integer
+      description: Token lifetime in seconds
+      example: 3600
+    refresh_token:
+      type: string
+      description: Refresh token for obtaining new access tokens
+    device_id:
+      type: string
+      format: uuid
+      description: Server-assigned device identifier
+    scope:
+      type: string
+      description: Granted scopes
+    id_token:
+      type: string
+      description: OpenID Connect ID token (when openid scope requested)
+
+# OAuth Schemas
+AuthorizeRequest:
+  type: object
+  required:
+    - response_type
+    - client_id
+    - redirect_uri
+    - code_challenge
+    - code_challenge_method
+  properties:
+    response_type:
+      type: string
+      enum: [code]
+    client_id:
+      type: string
+    redirect_uri:
+      type: string
+      format: uri
+    scope:
+      type: string
+    state:
+      type: string
+    code_challenge:
+      type: string
+    code_challenge_method:
+      type: string
+      enum: [S256]
+    nonce:
+      type: string
+
+AuthorizeInfoResponse:
+  type: object
+  properties:
+    message:
+      type: string
+      example: Authorization required
+    client_id:
+      type: string
+    client_name:
+      type: string
+    scope:
+      type: string
+    redirect_uri:
+      type: string
+      format: uri
+    state:
+      type: string
+
+TokenRequest:
+  type: object
+  required:
+    - grant_type
+  properties:
+    grant_type:
+      type: string
+      enum: [authorization_code, refresh_token, client_credentials]
+    code:
+      type: string
+      description: Authorization code (for authorization_code grant)
+    redirect_uri:
+      type: string
+      format: uri
+      description: Must match original redirect_uri (for authorization_code grant)
+    client_id:
+      type: string
+    client_secret:
+      type: string
+      description: Client secret (for confidential clients)
+    code_verifier:
+      type: string
+      description: PKCE code verifier (for authorization_code grant)
+    refresh_token:
+      type: string
+      description: Refresh token (for refresh_token grant)
+    scope:
+      type: string
+    device_id:
+      type: string
+      description: Device ID (for refresh_token grant)
+
+TokenResponse:
+  type: object
+  properties:
+    access_token:
+      type: string
+    token_type:
+      type: string
+      example: Bearer
+    expires_in:
+      type: integer
+      example: 3600
+    refresh_token:
+      type: string
+    scope:
+      type: string
+    id_token:
+      type: string
+    device_id:
+      type: string
+
+RefreshTokenRequest:
+  type: object
+  required:
+    - refresh_token
+    - client_id
+    - device_id
+  properties:
+    refresh_token:
+      type: string
+    client_id:
+      type: string
+    device_id:
+      type: string
+
+RevokeTokenRequest:
+  type: object
+  required:
+    - token
+  properties:
+    token:
+      type: string
+      description: The token to revoke (access or refresh token)
+    token_type_hint:
+      type: string
+      enum: [access_token, refresh_token]
+      description: Hint about the token type
+
+# Client Schemas
+CreateClientRequest:
+  type: object
+  required:
+    - name
+    - redirect_uris
+    - grant_types
+  properties:
+    name:
+      type: string
+      description: Human-readable client name
+      example: My Application
+    redirect_uris:
+      type: array
+      items:
+        type: string
+        format: uri
+      description: Allowed redirect URIs
+      example: ['https://myapp.com/callback']
+    grant_types:
+      type: array
+      items:
+        type: string
+        enum: [authorization_code, refresh_token, client_credentials]
+      description: Allowed grant types
+      example: ['authorization_code', 'refresh_token']
+    scopes:
+      type: array
+      items:
+        type: string
+      description: Allowed scopes
+      example: ['openid', 'profile', 'email']
+    is_confidential:
+      type: boolean
+      description: Whether client can keep secrets confidential
+      default: false
+
+CreateClientResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+    client_id:
+      type: string
+      description: OAuth client ID
+    client_secret:
+      type: string
+      description: Client secret (only returned on creation)
+    name:
+      type: string
+    redirect_uris:
+      type: array
+      items:
+        type: string
+    grant_types:
+      type: array
+      items:
+        type: string
+    scopes:
+      type: array
+      items:
+        type: string
+    created_at:
+      type: string
+      format: date-time
+
+# Device Schemas
+DeviceInfo:
+  type: object
+  properties:
+    device_id:
+      type: string
+      format: uuid
+    device_name:
+      type: string
+    user_agent:
+      type: string
+    ip_address:
+      type: string
+    last_used_at:
+      type: string
+      format: date-time
+    created_at:
+      type: string
+      format: date-time
+    is_current:
+      type: boolean
+      description: Whether this is the current device making the request
+
+ListDevicesResponse:
+  type: object
+  properties:
+    devices:
+      type: array
+      items:
+        type: object
+        properties:
+          device_id:
+            type: string
+            format: uuid
+          device_name:
+            type: string
+          user_agent:
+            type: string
+          ip_address:
+            type: string
+          last_used_at:
+            type: string
+            format: date-time
+          created_at:
+            type: string
+            format: date-time
+          is_current:
+            type: boolean
+            description: Whether this is the current device making the request
+
+# OIDC Schemas
+OpenIDConfiguration:
+  type: object
+  properties:
+    issuer:
+      type: string
+      format: uri
+    authorization_endpoint:
+      type: string
+      format: uri
+    token_endpoint:
+      type: string
+      format: uri
+    userinfo_endpoint:
+      type: string
+      format: uri
+    jwks_uri:
+      type: string
+      format: uri
+    registration_endpoint:
+      type: string
+      format: uri
+    scopes_supported:
+      type: array
+      items:
+        type: string
+    response_types_supported:
+      type: array
+      items:
+        type: string
+    response_modes_supported:
+      type: array
+      items:
+        type: string
+    grant_types_supported:
+      type: array
+      items:
+        type: string
+    subject_types_supported:
+      type: array
+      items:
+        type: string
+    id_token_signing_alg_values_supported:
+      type: array
+      items:
+        type: string
+    token_endpoint_auth_methods_supported:
+      type: array
+      items:
+        type: string
+    code_challenge_methods_supported:
+      type: array
+      items:
+        type: string
+    claims_supported:
+      type: array
+      items:
+        type: string
+    revocation_endpoint:
+      type: string
+      format: uri
+    introspection_endpoint:
+      type: string
+      format: uri
+    end_session_endpoint:
+      type: string
+      format: uri
+
+JWKS:
+  type: object
+  properties:
+    keys:
+      type: array
+      items:
+        type: object
+        properties:
+          kty:
+            type: string
+            example: RSA
+          use:
+            type: string
+            example: sig
+          kid:
+            type: string
+            description: Key ID
+          alg:
+            type: string
+            example: RS256
+          n:
+            type: string
+            description: RSA modulus (base64url encoded)
+          e:
+            type: string
+            description: RSA exponent (base64url encoded)
+
+JWK:
+  type: object
+  properties:
+    kty:
+      type: string
+      example: RSA
+    use:
+      type: string
+      example: sig
+    kid:
+      type: string
+      description: Key ID
+    alg:
+      type: string
+      example: RS256
+    n:
+      type: string
+      description: RSA modulus (base64url encoded)
+    e:
+      type: string
+      description: RSA exponent (base64url encoded)
