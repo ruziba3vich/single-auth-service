@@ -15,6 +15,7 @@ import (
 	"github.com/ruziba3vich/single-auth-service/internal/interfaces/http/handlers"
 	"github.com/ruziba3vich/single-auth-service/internal/interfaces/http/middleware"
 	"github.com/ruziba3vich/single-auth-service/pkg/jwt"
+	"github.com/ruziba3vich/single-auth-service/pkg/logger"
 )
 
 // Router wraps the Gin engine with application dependencies.
@@ -31,6 +32,8 @@ type RouterDeps struct {
 	JWTManager    *jwt.Manager
 	DBHealther    handlers.HealthChecker
 	RedisHealther handlers.HealthChecker
+	Logger        logger.Logger
+	LogWriter     *logger.SQLiteWriter
 }
 
 // NewRouter creates and configures the HTTP router.
@@ -43,8 +46,14 @@ func NewRouter(cfg *config.Config, deps *RouterDeps) *Router {
 	// Add recovery middleware
 	engine.Use(gin.Recovery())
 
-	// Add request logging (customize as needed)
-	engine.Use(gin.Logger())
+	// Add structured request logging middleware
+	if deps.Logger != nil {
+		requestLoggerMiddleware := middleware.NewRequestLoggerMiddleware(deps.Logger)
+		engine.Use(requestLoggerMiddleware.Handler())
+	} else {
+		// Fallback to default Gin logger
+		engine.Use(gin.Logger())
+	}
 
 	// Create the server that implements generated.ServerInterface
 	server := handlers.NewServer(&handlers.ServerDeps{
@@ -132,6 +141,25 @@ func NewRouter(cfg *config.Config, deps *RouterDeps) *Router {
 		protected.POST("/logout/device/:device_id", wrapWithDeviceID(server.LogoutDevice))
 		protected.POST("/logout/others", wrapWithLogoutAllOthersParams(server.LogoutAllOthers))
 		protected.POST("/logout/all", server.LogoutAll)
+	}
+
+	// Log viewer endpoints (no auth for dev)
+	if cfg.Logging.ViewerEnabled && deps.LogWriter != nil {
+		logViewerHandler, err := handlers.NewLogViewerHandler(&handlers.LogViewerDeps{
+			Writer: deps.LogWriter,
+		})
+		if err == nil {
+			admin := engine.Group("/admin")
+			{
+				admin.GET("/logs", logViewerHandler.Index)
+				admin.GET("/logs/entries", logViewerHandler.GetLogs)
+			}
+			// Serve static assets
+			engine.GET("/admin/static/*filepath", func(c *gin.Context) {
+				c.Request.URL.Path = strings.TrimPrefix(c.Request.URL.Path, "/admin/static")
+				handlers.StaticHandler().ServeHTTP(c.Writer, c.Request)
+			})
+		}
 	}
 
 	return &Router{

@@ -15,6 +15,7 @@ type Config struct {
 	JWT      JWTConfig
 	Auth     AuthConfig
 	Security SecurityConfig
+	Logging  LoggingConfig
 }
 
 // ServerConfig holds HTTP server configuration.
@@ -85,6 +86,16 @@ type SecurityConfig struct {
 	RateLimitBurst   int
 }
 
+// LoggingConfig holds logging configuration.
+type LoggingConfig struct {
+	Level           string
+	Environment     string
+	SQLiteDBPath    string
+	RetentionDays   int
+	AsyncBufferSize int
+	ViewerEnabled   bool
+}
+
 // Load loads configuration from environment variables.
 func Load() *Config {
 	return &Config{
@@ -141,6 +152,14 @@ func Load() *Config {
 			RateLimitEnabled: getEnvBool("RATE_LIMIT_ENABLED", true),
 			RateLimitRPS:     getEnvInt("RATE_LIMIT_RPS", 100),
 			RateLimitBurst:   getEnvInt("RATE_LIMIT_BURST", 200),
+		},
+		Logging: LoggingConfig{
+			Level:           getEnv("LOG_LEVEL", "info"),
+			Environment:     getEnv("LOG_ENV", "development"),
+			SQLiteDBPath:    getEnv("LOG_SQLITE_PATH", "./data/logs.db"),
+			RetentionDays:   getEnvInt("LOG_RETENTION_DAYS", 7),
+			AsyncBufferSize: getEnvInt("LOG_BUFFER_SIZE", 1000),
+			ViewerEnabled:   getEnvBool("LOG_VIEWER_ENABLED", true),
 		},
 	}
 }

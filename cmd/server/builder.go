@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,6 +15,7 @@ import (
 	"github.com/ruziba3vich/single-auth-service/internal/infrastructure/persistence"
 	"github.com/ruziba3vich/single-auth-service/internal/infrastructure/persistence/postgres"
 	apphttp "github.com/ruziba3vich/single-auth-service/internal/interfaces/http"
+	"github.com/ruziba3vich/single-auth-service/pkg/logger"
 )
 
 func run() error {
@@ -23,10 +23,21 @@ func run() error {
 
 	// Load configuration
 	cfg := config.Load()
-	log.Println("Starting authentication service...")
+
+	// Initialize logger
+	log, logWriter, err := initLogger(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to initialize logger: %w", err)
+	}
+	defer log.Sync()
+	logger.SetDefault(log)
+
+	log.Info("Starting authentication service...",
+		logger.Component("main"),
+	)
 
 	// Initialize infrastructure
-	db, redisClient, err := initInfrastructure(cfg)
+	db, redisClient, err := initInfrastructure(cfg, log)
 	if err != nil {
 		return err
 	}
@@ -42,30 +53,81 @@ func run() error {
 	if err := svcs.Key.Initialize(ctx); err != nil {
 		return fmt.Errorf("failed to initialize signing keys: %w", err)
 	}
-	log.Println("Signing keys initialized")
+	log.Info("Signing keys initialized", logger.Component("main"))
 
 	// Start key rotation scheduler
 	svcs.Key.StartRotationScheduler(ctx)
-	log.Println("Key rotation scheduler started")
+	log.Info("Key rotation scheduler started", logger.Component("main"))
+
+	// Start log cleanup job if enabled
+	if logWriter != nil {
+		logWriter.StartCleanupJob(ctx)
+		log.Info("Log cleanup job started",
+			logger.Component("main"),
+			logger.Int("retention_days", cfg.Logging.RetentionDays),
+		)
+	}
 
 	// Create and start server
-	server := newServer(cfg, svcs, deps, db, redisClient)
-	return startServer(server, cfg)
+	server := newServer(cfg, svcs, deps, db, redisClient, log, logWriter)
+	return startServer(server, cfg, log)
 }
 
-func initInfrastructure(cfg *config.Config) (*postgres.DB, *redis.Client, error) {
+func initLogger(cfg *config.Config) (logger.Logger, *logger.SQLiteWriter, error) {
+	logCfg := logger.Config{
+		Level:           cfg.Logging.Level,
+		Environment:     cfg.Logging.Environment,
+		EnableConsole:   true,
+		EnableSQLite:    cfg.Logging.ViewerEnabled,
+		SQLiteDBPath:    cfg.Logging.SQLiteDBPath,
+		AsyncBufferSize: cfg.Logging.AsyncBufferSize,
+		RetentionDays:   cfg.Logging.RetentionDays,
+		FlushInterval:   100 * time.Millisecond,
+		BatchSize:       100,
+	}
+
+	var writer *logger.SQLiteWriter
+	var err error
+
+	if logCfg.EnableSQLite {
+		writer, err = logger.NewSQLiteWriter(logCfg)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create SQLite log writer: %w", err)
+		}
+	}
+
+	log, err := logger.New(logCfg, writer)
+	if err != nil {
+		if writer != nil {
+			writer.Close()
+		}
+		return nil, nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+
+	return log, writer, nil
+}
+
+func initInfrastructure(cfg *config.Config, log logger.Logger) (*postgres.DB, *redis.Client, error) {
 	db, err := postgres.NewDB(&cfg.Database)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	log.Println("Connected to PostgreSQL")
+	log.Info("Connected to PostgreSQL",
+		logger.Component("infrastructure"),
+		logger.String("host", cfg.Database.Host),
+		logger.Int("port", cfg.Database.Port),
+	)
 
 	redisClient, err := redis.NewClient(&cfg.Redis)
 	if err != nil {
 		db.Close()
 		return nil, nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
-	log.Println("Connected to Redis")
+	log.Info("Connected to Redis",
+		logger.Component("infrastructure"),
+		logger.String("host", cfg.Redis.Host),
+		logger.Int("port", cfg.Redis.Port),
+	)
 
 	return db, redisClient, nil
 }
@@ -76,6 +138,8 @@ func newServer(
 	deps *application.Dependencies,
 	db *postgres.DB,
 	redisClient *redis.Client,
+	log logger.Logger,
+	logWriter *logger.SQLiteWriter,
 ) *http.Server {
 	routerDeps := &apphttp.RouterDeps{
 		AuthService:   svcs.Auth,
@@ -84,6 +148,8 @@ func newServer(
 		JWTManager:    deps.JWTManager,
 		DBHealther:    db,
 		RedisHealther: redisClient,
+		Logger:        log,
+		LogWriter:     logWriter,
 	}
 
 	router := apphttp.NewRouter(cfg, routerDeps)
@@ -97,11 +163,14 @@ func newServer(
 	}
 }
 
-func startServer(server *http.Server, cfg *config.Config) error {
+func startServer(server *http.Server, cfg *config.Config, log logger.Logger) error {
 	// Start server in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		log.Printf("Server listening on %s", server.Addr)
+		log.Info("Server listening",
+			logger.Component("server"),
+			logger.String("addr", server.Addr),
+		)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errChan <- err
 		}
@@ -114,8 +183,11 @@ func startServer(server *http.Server, cfg *config.Config) error {
 	select {
 	case err := <-errChan:
 		return fmt.Errorf("server error: %w", err)
-	case <-quit:
-		log.Println("Shutting down server...")
+	case sig := <-quit:
+		log.Info("Shutting down server...",
+			logger.Component("server"),
+			logger.String("signal", sig.String()),
+		)
 	}
 
 	// Graceful shutdown
@@ -126,6 +198,6 @@ func startServer(server *http.Server, cfg *config.Config) error {
 		return fmt.Errorf("server forced to shutdown: %w", err)
 	}
 
-	log.Println("Server exited")
+	log.Info("Server exited", logger.Component("server"))
 	return nil
 }
