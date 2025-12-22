@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Viewer - Single Auth Service</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/admin/static/logs.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Log Viewer</h1>
+            <div class="header-controls">
+                <label class="auto-refresh">
+                    <input type="checkbox" id="autoRefresh" checked>
+                    Auto-refresh (5s)
+                </label>
+                <span id="lastUpdate" class="last-update"></span>
+            </div>
+        </header>
+
+        <form id="filterForm" hx-get="/admin/logs/entries" hx-target="#logTable" hx-trigger="submit, change delay:300ms from:select, change delay:500ms from:input[type=text], change from:input[type=datetime-local]" hx-indicator="#loading">
+            <div class="filters">
+                <div class="filter-group">
+                    <label for="level">Level</label>
+                    <select name="level" id="level">
+                        <option value="">All Levels</option>
+                        <option value="debug">Debug</option>
+                        <option value="info">Info</option>
+                        <option value="warn">Warn</option>
+                        <option value="error">Error</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="search">Search</label>
+                    <input type="text" name="search" id="search" placeholder="Search messages...">
+                </div>
+
+                <div class="filter-group">
+                    <label for="request_id">Request ID</label>
+                    <input type="text" name="request_id" id="request_id" placeholder="Filter by request ID...">
+                </div>
+
+                <div class="filter-group">
+                    <label for="start_time">From</label>
+                    <input type="datetime-local" name="start_time" id="start_time">
+                </div>
+
+                <div class="filter-group">
+                    <label for="end_time">To</label>
+                    <input type="datetime-local" name="end_time" id="end_time">
+                </div>
+
+                <div class="filter-group">
+                    <label for="limit">Per Page</label>
+                    <select name="limit" id="limit">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+
+                <input type="hidden" name="offset" id="offset" value="0">
+            </div>
+        </form>
+
+        <div id="loading" class="htmx-indicator">Loading...</div>
+
+        <div id="logTable" hx-get="/admin/logs/entries" hx-trigger="load, every 5s [autoRefreshEnabled]" hx-swap="innerHTML">
+            <!-- Log entries will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh control
+        window.autoRefreshEnabled = true;
+
+        document.getElementById('autoRefresh').addEventListener('change', function() {
+            window.autoRefreshEnabled = this.checked;
+        });
+
+        // Update last update time
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            if (event.detail.target.id === 'logTable') {
+                document.getElementById('lastUpdate').textContent =
+                    'Last updated: ' + new Date().toLocaleTimeString();
+            }
+        });
+
+        // Pagination
+        document.body.addEventListener('click', function(e) {
+            if (e.target.matches('.page-btn')) {
+                document.getElementById('offset').value = e.target.dataset.offset;
+                htmx.trigger('#filterForm', 'submit');
+            }
+        });
+
+        // Expand/collapse log details
+        document.body.addEventListener('click', function(e) {
+            if (e.target.matches('.log-row') || e.target.closest('.log-row')) {
+                const row = e.target.closest('.log-row');
+                const details = row.nextElementSibling;
+                if (details && details.classList.contains('log-details')) {
+                    details.classList.toggle('expanded');
+                    row.classList.toggle('expanded');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
