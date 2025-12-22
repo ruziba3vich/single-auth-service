@@ -101,7 +101,7 @@ func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
 			Host:         getEnv("SERVER_HOST", "0.0.0.0"),
-			Port:         getEnvInt("SERVER_PORT", 8080),
+			Port:         getEnvInt("SERVER_PORT", 8888),
 			ReadTimeout:  getEnvDuration("SERVER_READ_TIMEOUT", 30*time.Second),
 			WriteTimeout: getEnvDuration("SERVER_WRITE_TIMEOUT", 30*time.Second),
 			IdleTimeout:  getEnvDuration("SERVER_IDLE_TIMEOUT", 120*time.Second),
@@ -126,7 +126,7 @@ func Load() *Config {
 			MinIdleConns: getEnvInt("REDIS_MIN_IDLE_CONNS", 5),
 		},
 		JWT: JWTConfig{
-			Issuer:              getEnv("JWT_ISSUER", "http://localhost:8080"),
+			Issuer:              getEnv("JWT_ISSUER", "http://localhost:8888"),
 			AccessTokenTTL:      getEnvDuration("JWT_ACCESS_TOKEN_TTL", 10*time.Minute),
 			RefreshTokenTTL:     getEnvDuration("JWT_REFRESH_TOKEN_TTL", 168*time.Hour),
 			IDTokenTTL:          getEnvDuration("JWT_ID_TOKEN_TTL", 1*time.Hour),
@@ -144,7 +144,7 @@ func Load() *Config {
 			MaxDevicesPerUser: getEnvInt("MAX_DEVICES_PER_USER", 10),
 		},
 		Security: SecurityConfig{
-			AllowedOrigins:   getEnvSlice("ALLOWED_ORIGINS", []string{"http://localhost:3000", "http://localhost:8080"}),
+			AllowedOrigins:   getEnvSlice("ALLOWED_ORIGINS", []string{"http://localhost:3000", "http://localhost:8888"}),
 			CSRFTokenLength:  getEnvInt("CSRF_TOKEN_LENGTH", 32),
 			SecureCookies:    getEnvBool("SECURE_COOKIES", false),
 			CookieDomain:     getEnv("COOKIE_DOMAIN", "localhost"),
