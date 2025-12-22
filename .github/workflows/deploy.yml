@@ -1,0 +1,75 @@
+name: Build and Deploy Auth Service
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ruziba3vich/single-auth-service
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/ruziba3vich/single-auth-service:latest
+          no-cache: true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            echo "Authenticating with GHCR..."
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            echo "Stopping old container (if exists)..."
+            docker stop single-auth-service || true
+            docker rm single-auth-service || true
+
+            echo "Removing old Docker image..."
+            docker rmi ghcr.io/ruziba3vich/single-auth-service:latest || true
+
+            echo "Pulling latest Docker image..."
+            docker pull ghcr.io/ruziba3vich/single-auth-service:latest
+
+            echo "Freeing port 8888 if occupied..."
+            sudo fuser -k 8888/tcp || true
+
+            echo "Running new container..."
+            docker run -d \
+              --restart always \
+              --name single-auth-service \
+              -p 8888:8888 \
+              ghcr.io/ruziba3vich/single-auth-service:latest
+
+            echo "Auth Service Deployment Successful!"

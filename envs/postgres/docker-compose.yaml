@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: auth-postgres
+    container_name: single-auth-postgres
     env_file:
       - .env
     environment:
@@ -27,5 +27,5 @@ volumes:
 
 networks:
   auth-network:
-    name: auth-network
+    name: single-auth-network
     driver: bridge

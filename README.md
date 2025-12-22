@@ -1363,7 +1363,7 @@ See `.env.example` for all configuration options.
 **Critical security settings:**
 - `JWT_ISSUER`: Must be HTTPS in production
 - `SECURE_COOKIES`: Must be `true` in production
-- `DB_SSL_MODE`: Use `require` or `verify-full` in production
+- `SINGLE_AUTH_DB_SSL_MODE`: Use `require` or `verify-full` in production
 
 ## Health Checks
 

@@ -6,8 +6,8 @@ services:
       - .env
     command: >
       sh -c '
-        if [ -n "$REDIS_PASSWORD" ]; then
-          redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"
+        if [ -n "$SINGLE_AUTH_REDIS_PASSWORD" ]; then
+          redis-server --appendonly yes --requirepass "$SINGLE_AUTH_REDIS_PASSWORD"
         else
           redis-server --appendonly yes
         fi
@@ -15,7 +15,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "${REDIS_PORT}:6379"
+      - "${SINGLE_AUTH_REDIS_PORT}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

@@ -1,4 +1,4 @@
-.PHONY: all build run test clean docker-build docker-up docker-down migrate lint postman openapi openapi-validate openapi-gen
+.PHONY: all build run test clean docker-build docker-up docker-down migrate migrate-up migrate-down migrate-down-all migrate-create migrate-version migrate-force lint postman openapi openapi-validate openapi-gen
 
 # Variables
 BINARY_NAME=auth-service
@@ -71,7 +71,7 @@ migrate:
 	@echo "Running migrations..."
 	@for f in migrations/*.sql; do \
 		echo "Applying $$f..."; \
-		PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -U $(DB_USER) -d $(DB_NAME) -f $$f; \
+		PGPASSWORD=$(SINGLE_AUTH_DB_PASSWORD) psql -h $(SINGLE_AUTH_DB_HOST) -U $(SINGLE_AUTH_DB_USER) -d $(SINGLE_AUTH_DB_NAME) -f $$f; \
 	done
 	@echo "Migrations complete."
 
@@ -110,10 +110,48 @@ help:
 	@sed -n 's/^##//p' $(MAKEFILE_LIST) | column -t -s ':' | sed -e 's/^/ /'
 
 # Default values for migration (override with environment variables)
-DB_HOST ?= localhost
-DB_USER ?= auth
-DB_PASSWORD ?= auth_secret_password
-DB_NAME ?= auth_service
+SINGLE_AUTH_DB_HOST ?= single-auth-postgres-db.leetcoders.uz
+SINGLE_AUTH_DB_PORT ?= 5500
+SINGLE_AUTH_DB_USER ?= single_auth
+SINGLE_AUTH_DB_PASSWORD ?= single_auth_secret_password
+SINGLE_AUTH_DB_NAME ?= single_auth_service_db
+SINGLE_AUTH_DB_SSL_MODE ?= disable
+
+# Migration database URL
+DATABASE_URL = postgres://single_auth:single_auth_secret_password@single-auth-postgres-db.leetcoders.uz:5500/single_auth_service_db?sslmode=disable
+
+## migrate-up: Run all pending migrations
+migrate-up:
+	@echo "Running migrations up..."
+	migrate -path migrations -database "$(DATABASE_URL)" up
+	@echo "Migrations complete."
+
+## migrate-down: Rollback the last migration
+migrate-down:
+	@echo "Rolling back last migration..."
+	migrate -path migrations -database "$(DATABASE_URL)" down 1
+	@echo "Rollback complete."
+
+## migrate-down-all: Rollback all migrations
+migrate-down-all:
+	@echo "Rolling back all migrations..."
+	migrate -path migrations -database "$(DATABASE_URL)" down -all
+	@echo "Rollback complete."
+
+## migrate-create: Create a new migration (usage: make migrate-create NAME=create_table)
+migrate-create:
+	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=migration_name"; exit 1; fi
+	migrate create -ext sql -dir migrations -seq $(NAME)
+	@echo "Created new migration: $(NAME)"
+
+## migrate-version: Show current migration version
+migrate-version:
+	@migrate -path migrations -database "$(DATABASE_URL)" version
+
+## migrate-force: Force set migration version (usage: make migrate-force VERSION=1)
+migrate-force:
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make migrate-force VERSION=1"; exit 1; fi
+	migrate -path migrations -database "$(DATABASE_URL)" force $(VERSION)
 
 # Postman collection settings
 POSTMAN_COLLECTION_NAME ?= Single Auth Service API

@@ -5,25 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: auth-service
     ports:
-      - "8080:8080"
-    environment:
-      - SERVER_HOST=0.0.0.0
-      - SERVER_PORT=8080
-      - DB_HOST=auth-postgres
-      - DB_PORT=5432
-      - DB_USER=auth
-      - DB_PASSWORD=auth_secret_password
-      - DB_NAME=auth_service
-      - DB_SSL_MODE=disable
-      - REDIS_HOST=auth-redis
-      - REDIS_PORT=6379
-      - JWT_ISSUER=http://localhost:8080
-      - JWT_ACCESS_TOKEN_TTL=15m
-      - JWT_REFRESH_TOKEN_TTL=168h
-      - JWT_KEY_ROTATION_INTERVAL=24h
-      - SECURE_COOKIES=false
-      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
-      - RATE_LIMIT_ENABLED=true
+      - "8888:8888"
     restart: unless-stopped
     networks:
       - auth-network
