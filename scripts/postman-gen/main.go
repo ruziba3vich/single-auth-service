@@ -44,8 +44,8 @@ type Header struct {
 }
 
 type Body struct {
-	Mode string `json:"mode"`
-	Raw  string `json:"raw"`
+	Mode    string       `json:"mode"`
+	Raw     string       `json:"raw"`
 	Options *BodyOptions `json:"options,omitempty"`
 }
 
@@ -102,7 +102,7 @@ var requestBodies = map[string]string{
   "scopes": ["openid", "profile", "email"],
   "is_confidential": true
 }`,
-	"dto.TokenRequest": `grant_type=authorization_code&code=auth-code&redirect_uri=http://localhost:8080/callback&client_id=your-client-id&code_verifier=your-code-verifier`,
+	"dto.TokenRequest":     `grant_type=authorization_code&code=auth-code&redirect_uri=http://localhost:8080/callback&client_id=your-client-id&code_verifier=your-code-verifier`,
 	"dto.AuthorizeRequest": ``,
 }
 
@@ -308,7 +308,7 @@ func createRequestItem(ep Endpoint, baseURL string) PostmanItem {
 	// Parse base URL
 	protocol := "http"
 	host := "localhost"
-	port := "8080"
+	port := "8888"
 
 	if strings.HasPrefix(baseURL, "https://") {
 		protocol = "https"
