@@ -520,3 +520,26 @@ JWK:
     e:
       type: string
       description: RSA exponent (base64url encoded)
+
+# FCM Schemas
+RegisterFCMTokenRequest:
+  type: object
+  required:
+    - refresh_token
+    - fcm_token
+  properties:
+    refresh_token:
+      type: string
+      description: The refresh token to associate the FCM token with
+    fcm_token:
+      type: string
+      description: Firebase Cloud Messaging token for push notifications
+
+FCMTokensResponse:
+  type: object
+  properties:
+    fcm_tokens:
+      type: array
+      items:
+        type: string
+      description: List of active FCM tokens for the user

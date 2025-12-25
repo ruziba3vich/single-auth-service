@@ -33,3 +33,10 @@ UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1 AND device_id != $2;
 
 -- name: DeleteExpiredRefreshTokens :execrows
 DELETE FROM refresh_tokens WHERE expires_at < $1;
+
+-- name: UpdateFCMToken :exec
+UPDATE refresh_tokens SET fcm_token = $2 WHERE token_hash = $1 AND revoked = FALSE;
+
+-- name: GetActiveFCMTokensByUserID :many
+SELECT DISTINCT fcm_token FROM refresh_tokens
+WHERE user_id = $1 AND fcm_token IS NOT NULL AND revoked = FALSE AND expires_at > $2;

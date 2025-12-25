@@ -611,3 +611,55 @@ func (s *Server) CreateClient(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, resp)
 }
+
+// ============================================================================
+// FCM Endpoints
+// ============================================================================
+
+func (s *Server) RegisterFCMToken(c *gin.Context) {
+	var body generated.RegisterFCMTokenJSONRequestBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": err.Error(),
+		})
+		return
+	}
+
+	err := s.authService.RegisterFCMToken(c.Request.Context(), body.RefreshToken, body.FcmToken)
+	if err != nil {
+		handleAuthError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "FCM token registered successfully"})
+}
+
+func (s *Server) GetUserFCMTokens(c *gin.Context, userId openapi_types.UUID) {
+	// Verify the authenticated user matches the requested user ID
+	authUserID, err := middleware.GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "unauthorized",
+			"error_description": "authentication required",
+		})
+		return
+	}
+
+	requestedUserID := uuid.UUID(userId)
+	if authUserID != requestedUserID {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":             "forbidden",
+			"error_description": "cannot access other user's FCM tokens",
+		})
+		return
+	}
+
+	resp, err := s.authService.GetUserFCMTokens(c.Request.Context(), requestedUserID)
+	if err != nil {
+		handleAuthError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}

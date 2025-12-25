@@ -102,6 +102,10 @@ var requestBodies = map[string]string{
   "scopes": ["openid", "profile", "email"],
   "is_confidential": true
 }`,
+	"dto.RegisterFCMTokenRequest": `{
+  "refresh_token": "your-refresh-token",
+  "fcm_token": "your-fcm-token"
+}`,
 	"dto.TokenRequest":     `grant_type=authorization_code&code=auth-code&redirect_uri=http://localhost:8080/callback&client_id=your-client-id&code_verifier=your-code-verifier`,
 	"dto.AuthorizeRequest": ``,
 }
@@ -394,6 +398,7 @@ func isPublicEndpoint(path string) bool {
 		"/jwks.json",
 		"/token",
 		"/authorize",
+		"/fcm/register",
 	}
 
 	for _, p := range publicPaths {
@@ -411,6 +416,8 @@ func getRequestBody(requestType, path string) string {
 
 	// Generate based on path
 	switch {
+	case strings.Contains(path, "/fcm/register"):
+		return requestBodies["dto.RegisterFCMTokenRequest"]
 	case strings.Contains(path, "/register"):
 		return requestBodies["dto.RegisterRequest"]
 	case strings.Contains(path, "/login"):

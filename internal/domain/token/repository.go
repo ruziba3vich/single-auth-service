@@ -41,4 +41,10 @@ type RefreshTokenRepository interface {
 
 	// DeleteExpired removes expired tokens (cleanup job).
 	DeleteExpired(ctx context.Context) (int64, error)
+
+	// UpdateFCMToken updates the FCM token for a refresh token identified by its hash.
+	UpdateFCMToken(ctx context.Context, tokenHash, fcmToken string) error
+
+	// GetActiveFCMTokensByUserID retrieves all active FCM tokens for a user.
+	GetActiveFCMTokensByUserID(ctx context.Context, userID uuid.UUID) ([]string, error)
 }

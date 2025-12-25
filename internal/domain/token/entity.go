@@ -18,6 +18,7 @@ type RefreshToken struct {
 	ExpiresAt time.Time
 	Revoked   bool
 	CreatedAt time.Time
+	FCMToken  *string   // Firebase Cloud Messaging token for push notifications
 }
 
 // NewRefreshToken creates a new refresh token entity.

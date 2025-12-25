@@ -134,6 +134,10 @@ func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) (int64, erro
 }
 
 func (r *RefreshTokenRepository) toDomainToken(row tokens.RefreshToken) *token.RefreshToken {
+	var fcmToken *string
+	if row.FcmToken.Valid {
+		fcmToken = &row.FcmToken.String
+	}
 	return &token.RefreshToken{
 		ID:        fromPgUUID(row.ID),
 		UserID:    fromPgUUID(row.UserID),
@@ -144,6 +148,7 @@ func (r *RefreshTokenRepository) toDomainToken(row tokens.RefreshToken) *token.R
 		ExpiresAt: row.ExpiresAt.Time,
 		Revoked:   row.Revoked,
 		CreatedAt: row.CreatedAt.Time,
+		FCMToken:  fcmToken,
 	}
 }
 
@@ -153,4 +158,32 @@ func (r *RefreshTokenRepository) toDomainTokens(rows []tokens.RefreshToken) []*t
 		result = append(result, r.toDomainToken(row))
 	}
 	return result
+}
+
+func (r *RefreshTokenRepository) UpdateFCMToken(ctx context.Context, tokenHash, fcmToken string) error {
+	err := r.queries.UpdateFCMToken(ctx, tokens.UpdateFCMTokenParams{
+		TokenHash: tokenHash,
+		FcmToken:  pgtype.Text{String: fcmToken, Valid: true},
+	})
+	if err != nil {
+		return apperrors.Wrap(err, "failed to update FCM token")
+	}
+	return nil
+}
+
+func (r *RefreshTokenRepository) GetActiveFCMTokensByUserID(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	rows, err := r.queries.GetActiveFCMTokensByUserID(ctx, tokens.GetActiveFCMTokensByUserIDParams{
+		UserID:    toPgUUID(userID),
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+	})
+	if err != nil {
+		return nil, apperrors.Wrap(err, "failed to get FCM tokens")
+	}
+	result := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.Valid {
+			result = append(result, row.String)
+		}
+	}
+	return result, nil
 }

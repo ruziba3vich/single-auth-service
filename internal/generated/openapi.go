@@ -144,6 +144,15 @@ type ListDevicesParams struct {
 	XDeviceID *openapi_types.UUID `json:"X-Device-ID,omitempty"`
 }
 
+// RegisterFCMTokenJSONBody defines parameters for RegisterFCMToken.
+type RegisterFCMTokenJSONBody struct {
+	// FcmToken Firebase Cloud Messaging token for push notifications
+	FcmToken string `json:"fcm_token"`
+
+	// RefreshToken The refresh token to associate the FCM token with
+	RefreshToken string `json:"refresh_token"`
+}
+
 // LogoutAllOthersParams defines parameters for LogoutAllOthers.
 type LogoutAllOthersParams struct {
 	// XDeviceID Device identifier for device-bound operations
@@ -226,6 +235,9 @@ type RegisterJSONRequestBody RegisterJSONBody
 
 // AuthorizeConsentFormdataRequestBody defines body for AuthorizeConsent for application/x-www-form-urlencoded ContentType.
 type AuthorizeConsentFormdataRequestBody AuthorizeConsentFormdataBody
+
+// RegisterFCMTokenJSONRequestBody defines body for RegisterFCMToken for application/json ContentType.
+type RegisterFCMTokenJSONRequestBody RegisterFCMTokenJSONBody
 
 // CreateClientJSONRequestBody defines body for CreateClient for application/json ContentType.
 type CreateClientJSONRequestBody CreateClientJSONBody
@@ -339,6 +351,11 @@ type ClientInterface interface {
 	// ListDevices request
 	ListDevices(ctx context.Context, params *ListDevicesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RegisterFCMTokenWithBody request with any body
+	RegisterFCMTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RegisterFCMToken(ctx context.Context, body RegisterFCMTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetHealth request
 	GetHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -379,6 +396,9 @@ type ClientInterface interface {
 	RevokeTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RevokeToken(ctx context.Context, body RevokeTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetUserFCMTokens request
+	GetUserFCMTokens(ctx context.Context, userId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetOpenIDConfiguration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -491,6 +511,30 @@ func (c *Client) AuthorizeConsentWithFormdataBody(ctx context.Context, body Auth
 
 func (c *Client) ListDevices(ctx context.Context, params *ListDevicesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListDevicesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegisterFCMTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterFCMTokenRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegisterFCMToken(ctx context.Context, body RegisterFCMTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterFCMTokenRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -671,6 +715,18 @@ func (c *Client) RevokeTokenWithBody(ctx context.Context, contentType string, bo
 
 func (c *Client) RevokeToken(ctx context.Context, body RevokeTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRevokeTokenRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetUserFCMTokens(ctx context.Context, userId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetUserFCMTokensRequest(c.Server, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -1053,6 +1109,46 @@ func NewListDevicesRequest(server string, params *ListDevicesParams) (*http.Requ
 	return req, nil
 }
 
+// NewRegisterFCMTokenRequest calls the generic RegisterFCMToken builder with application/json body
+func NewRegisterFCMTokenRequest(server string, body RegisterFCMTokenJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRegisterFCMTokenRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewRegisterFCMTokenRequestWithBody generates requests for RegisterFCMToken with any type of body
+func NewRegisterFCMTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/fcm/register")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetHealthRequest generates requests for GetHealth
 func NewGetHealthRequest(server string) (*http.Request, error) {
 	var err error
@@ -1424,6 +1520,40 @@ func NewRevokeTokenRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
+// NewGetUserFCMTokensRequest generates requests for GetUserFCMTokens
+func NewGetUserFCMTokensRequest(server string, userId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "user_id", runtime.ParamLocationPath, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/users/%s/fcm-tokens", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -1494,6 +1624,11 @@ type ClientWithResponsesInterface interface {
 	// ListDevicesWithResponse request
 	ListDevicesWithResponse(ctx context.Context, params *ListDevicesParams, reqEditors ...RequestEditorFn) (*ListDevicesResponse, error)
 
+	// RegisterFCMTokenWithBodyWithResponse request with any body
+	RegisterFCMTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterFCMTokenResponse, error)
+
+	RegisterFCMTokenWithResponse(ctx context.Context, body RegisterFCMTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterFCMTokenResponse, error)
+
 	// GetHealthWithResponse request
 	GetHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthResponse, error)
 
@@ -1534,6 +1669,9 @@ type ClientWithResponsesInterface interface {
 	RevokeTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RevokeTokenResponse, error)
 
 	RevokeTokenWithResponse(ctx context.Context, body RevokeTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RevokeTokenResponse, error)
+
+	// GetUserFCMTokensWithResponse request
+	GetUserFCMTokensWithResponse(ctx context.Context, userId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetUserFCMTokensResponse, error)
 }
 
 type GetOpenIDConfigurationResponse struct {
@@ -1812,6 +1950,44 @@ func (r ListDevicesResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListDevicesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RegisterFCMTokenResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON400 *struct {
+		// Error Error code
+		Error string `json:"error"`
+
+		// ErrorDescription Human-readable error description
+		ErrorDescription string `json:"error_description"`
+	}
+	JSON401 *struct {
+		// Error Error code
+		Error string `json:"error"`
+
+		// ErrorDescription Human-readable error description
+		ErrorDescription string `json:"error_description"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r RegisterFCMTokenResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RegisterFCMTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2231,6 +2407,45 @@ func (r RevokeTokenResponse) StatusCode() int {
 	return 0
 }
 
+type GetUserFCMTokensResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		// FcmTokens List of active FCM tokens for the user
+		FcmTokens *[]string `json:"fcm_tokens,omitempty"`
+	}
+	JSON401 *struct {
+		// Error Error code
+		Error string `json:"error"`
+
+		// ErrorDescription Human-readable error description
+		ErrorDescription string `json:"error_description"`
+	}
+	JSON403 *struct {
+		// Error Error code
+		Error string `json:"error"`
+
+		// ErrorDescription Human-readable error description
+		ErrorDescription string `json:"error_description"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetUserFCMTokensResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetUserFCMTokensResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // GetOpenIDConfigurationWithResponse request returning *GetOpenIDConfigurationResponse
 func (c *ClientWithResponses) GetOpenIDConfigurationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOpenIDConfigurationResponse, error) {
 	rsp, err := c.GetOpenIDConfiguration(ctx, reqEditors...)
@@ -2316,6 +2531,23 @@ func (c *ClientWithResponses) ListDevicesWithResponse(ctx context.Context, param
 		return nil, err
 	}
 	return ParseListDevicesResponse(rsp)
+}
+
+// RegisterFCMTokenWithBodyWithResponse request with arbitrary body returning *RegisterFCMTokenResponse
+func (c *ClientWithResponses) RegisterFCMTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterFCMTokenResponse, error) {
+	rsp, err := c.RegisterFCMTokenWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterFCMTokenResponse(rsp)
+}
+
+func (c *ClientWithResponses) RegisterFCMTokenWithResponse(ctx context.Context, body RegisterFCMTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterFCMTokenResponse, error) {
+	rsp, err := c.RegisterFCMToken(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterFCMTokenResponse(rsp)
 }
 
 // GetHealthWithResponse request returning *GetHealthResponse
@@ -2447,6 +2679,15 @@ func (c *ClientWithResponses) RevokeTokenWithResponse(ctx context.Context, body 
 		return nil, err
 	}
 	return ParseRevokeTokenResponse(rsp)
+}
+
+// GetUserFCMTokensWithResponse request returning *GetUserFCMTokensResponse
+func (c *ClientWithResponses) GetUserFCMTokensWithResponse(ctx context.Context, userId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetUserFCMTokensResponse, error) {
+	rsp, err := c.GetUserFCMTokens(ctx, userId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetUserFCMTokensResponse(rsp)
 }
 
 // ParseGetOpenIDConfigurationResponse parses an HTTP response from a GetOpenIDConfigurationWithResponse call
@@ -2786,6 +3027,60 @@ func ParseListDevicesResponse(rsp *http.Response) (*ListDevicesResponse, error) 
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			// Error Error code
+			Error string `json:"error"`
+
+			// ErrorDescription Human-readable error description
+			ErrorDescription string `json:"error_description"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRegisterFCMTokenResponse parses an HTTP response from a RegisterFCMTokenWithResponse call
+func ParseRegisterFCMTokenResponse(rsp *http.Response) (*RegisterFCMTokenResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RegisterFCMTokenResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			// Error Error code
+			Error string `json:"error"`
+
+			// ErrorDescription Human-readable error description
+			ErrorDescription string `json:"error_description"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest struct {
@@ -3343,6 +3638,61 @@ func ParseRevokeTokenResponse(rsp *http.Response) (*RevokeTokenResponse, error) 
 	return response, nil
 }
 
+// ParseGetUserFCMTokensResponse parses an HTTP response from a GetUserFCMTokensWithResponse call
+func ParseGetUserFCMTokensResponse(rsp *http.Response) (*GetUserFCMTokensResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetUserFCMTokensResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// FcmTokens List of active FCM tokens for the user
+			FcmTokens *[]string `json:"fcm_tokens,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			// Error Error code
+			Error string `json:"error"`
+
+			// ErrorDescription Human-readable error description
+			ErrorDescription string `json:"error_description"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			// Error Error code
+			Error string `json:"error"`
+
+			// ErrorDescription Human-readable error description
+			ErrorDescription string `json:"error_description"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// OpenID Connect discovery document
@@ -3366,6 +3716,9 @@ type ServerInterface interface {
 	// List user devices
 	// (GET /devices)
 	ListDevices(c *gin.Context, params ListDevicesParams)
+	// Register FCM token
+	// (POST /fcm/register)
+	RegisterFCMToken(c *gin.Context)
 	// Service health status
 	// (GET /health)
 	GetHealth(c *gin.Context)
@@ -3399,6 +3752,9 @@ type ServerInterface interface {
 	// Revoke token
 	// (POST /token/revoke)
 	RevokeToken(c *gin.Context)
+	// Get user FCM tokens
+	// (GET /users/{user_id}/fcm-tokens)
+	GetUserFCMTokens(c *gin.Context, userId openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -3661,6 +4017,19 @@ func (siw *ServerInterfaceWrapper) ListDevices(c *gin.Context) {
 	siw.Handler.ListDevices(c, params)
 }
 
+// RegisterFCMToken operation middleware
+func (siw *ServerInterfaceWrapper) RegisterFCMToken(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RegisterFCMToken(c)
+}
+
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(c *gin.Context) {
 
@@ -3847,6 +4216,32 @@ func (siw *ServerInterfaceWrapper) RevokeToken(c *gin.Context) {
 	siw.Handler.RevokeToken(c)
 }
 
+// GetUserFCMTokens operation middleware
+func (siw *ServerInterfaceWrapper) GetUserFCMTokens(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "user_id" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", c.Param("user_id"), &userId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter user_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUserFCMTokens(c, userId)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -3881,6 +4276,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/authorize", wrapper.Authorize)
 	router.POST(options.BaseURL+"/authorize", wrapper.AuthorizeConsent)
 	router.GET(options.BaseURL+"/devices", wrapper.ListDevices)
+	router.POST(options.BaseURL+"/fcm/register", wrapper.RegisterFCMToken)
 	router.GET(options.BaseURL+"/health", wrapper.GetHealth)
 	router.GET(options.BaseURL+"/jwks.json", wrapper.GetJWKS)
 	router.GET(options.BaseURL+"/live", wrapper.GetLive)
@@ -3892,77 +4288,83 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/token", wrapper.Token)
 	router.POST(options.BaseURL+"/token/refresh", wrapper.RefreshToken)
 	router.POST(options.BaseURL+"/token/revoke", wrapper.RevokeToken)
+	router.GET(options.BaseURL+"/users/:user_id/fcm-tokens", wrapper.GetUserFCMTokens)
 }
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"H24e/i8AAP//Wn9TG1xmAAA=",
+	"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",
+	"/PD8fwEAAP//jJarBhNyAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -3,10 +3,11 @@ sql:
   - engine: "postgresql"
     queries: "queries.sql"
     schema:
-      - "../../../../../migrations/001_create_users.sql"
-      - "../../../../../migrations/003_create_oauth_clients.sql"
-      - "../../../../../migrations/004_create_user_devices.sql"
-      - "../../../../../migrations/005_create_refresh_tokens.sql"
+      - "../../../../../migrations/000002_create_users.up.sql"
+      - "../../../../../migrations/000004_create_oauth_clients.up.sql"
+      - "../../../../../migrations/000005_create_user_devices.up.sql"
+      - "../../../../../migrations/000006_create_refresh_tokens.up.sql"
+      - "../../../../../migrations/000008_add_fcm_token.up.sql"
     gen:
       go:
         package: "tokens"

@@ -55,8 +55,38 @@ func (q *Queries) DeleteExpiredRefreshTokens(ctx context.Context, expiresAt pgty
 	return result.RowsAffected(), nil
 }
 
+const getActiveFCMTokensByUserID = `-- name: GetActiveFCMTokensByUserID :many
+SELECT DISTINCT fcm_token FROM refresh_tokens
+WHERE user_id = $1 AND fcm_token IS NOT NULL AND revoked = FALSE AND expires_at > $2
+`
+
+type GetActiveFCMTokensByUserIDParams struct {
+	UserID    pgtype.UUID        `json:"user_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) GetActiveFCMTokensByUserID(ctx context.Context, arg GetActiveFCMTokensByUserIDParams) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, getActiveFCMTokensByUserID, arg.UserID, arg.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.Text
+	for rows.Next() {
+		var fcm_token pgtype.Text
+		if err := rows.Scan(&fcm_token); err != nil {
+			return nil, err
+		}
+		items = append(items, fcm_token)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getActiveRefreshTokensByUserAndDevice = `-- name: GetActiveRefreshTokensByUserAndDevice :many
-SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at FROM refresh_tokens
+SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at, fcm_token FROM refresh_tokens
 WHERE user_id = $1 AND device_id = $2 AND revoked = FALSE AND expires_at > $3
 ORDER BY created_at DESC
 `
@@ -86,6 +116,7 @@ func (q *Queries) GetActiveRefreshTokensByUserAndDevice(ctx context.Context, arg
 			&i.ExpiresAt,
 			&i.Revoked,
 			&i.CreatedAt,
+			&i.FcmToken,
 		); err != nil {
 			return nil, err
 		}
@@ -98,7 +129,7 @@ func (q *Queries) GetActiveRefreshTokensByUserAndDevice(ctx context.Context, arg
 }
 
 const getRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
-SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at FROM refresh_tokens WHERE token_hash = $1
+SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at, fcm_token FROM refresh_tokens WHERE token_hash = $1
 `
 
 func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error) {
@@ -114,12 +145,13 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (
 		&i.ExpiresAt,
 		&i.Revoked,
 		&i.CreatedAt,
+		&i.FcmToken,
 	)
 	return i, err
 }
 
 const getRefreshTokenByID = `-- name: GetRefreshTokenByID :one
-SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at FROM refresh_tokens WHERE id = $1
+SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at, fcm_token FROM refresh_tokens WHERE id = $1
 `
 
 func (q *Queries) GetRefreshTokenByID(ctx context.Context, id pgtype.UUID) (RefreshToken, error) {
@@ -135,12 +167,13 @@ func (q *Queries) GetRefreshTokenByID(ctx context.Context, id pgtype.UUID) (Refr
 		&i.ExpiresAt,
 		&i.Revoked,
 		&i.CreatedAt,
+		&i.FcmToken,
 	)
 	return i, err
 }
 
 const getRefreshTokensByDeviceID = `-- name: GetRefreshTokensByDeviceID :many
-SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at FROM refresh_tokens WHERE device_id = $1 ORDER BY created_at DESC
+SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at, fcm_token FROM refresh_tokens WHERE device_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) GetRefreshTokensByDeviceID(ctx context.Context, deviceID pgtype.UUID) ([]RefreshToken, error) {
@@ -162,6 +195,7 @@ func (q *Queries) GetRefreshTokensByDeviceID(ctx context.Context, deviceID pgtyp
 			&i.ExpiresAt,
 			&i.Revoked,
 			&i.CreatedAt,
+			&i.FcmToken,
 		); err != nil {
 			return nil, err
 		}
@@ -174,7 +208,7 @@ func (q *Queries) GetRefreshTokensByDeviceID(ctx context.Context, deviceID pgtyp
 }
 
 const getRefreshTokensByUserID = `-- name: GetRefreshTokensByUserID :many
-SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC
+SELECT id, user_id, client_id, device_id, token_hash, scope, expires_at, revoked, created_at, fcm_token FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) GetRefreshTokensByUserID(ctx context.Context, userID pgtype.UUID) ([]RefreshToken, error) {
@@ -196,6 +230,7 @@ func (q *Queries) GetRefreshTokensByUserID(ctx context.Context, userID pgtype.UU
 			&i.ExpiresAt,
 			&i.Revoked,
 			&i.CreatedAt,
+			&i.FcmToken,
 		); err != nil {
 			return nil, err
 		}
@@ -245,5 +280,19 @@ type RevokeRefreshTokensExceptDeviceParams struct {
 
 func (q *Queries) RevokeRefreshTokensExceptDevice(ctx context.Context, arg RevokeRefreshTokensExceptDeviceParams) error {
 	_, err := q.db.Exec(ctx, revokeRefreshTokensExceptDevice, arg.UserID, arg.DeviceID)
+	return err
+}
+
+const updateFCMToken = `-- name: UpdateFCMToken :exec
+UPDATE refresh_tokens SET fcm_token = $2 WHERE token_hash = $1 AND revoked = FALSE
+`
+
+type UpdateFCMTokenParams struct {
+	TokenHash string      `json:"token_hash"`
+	FcmToken  pgtype.Text `json:"fcm_token"`
+}
+
+func (q *Queries) UpdateFCMToken(ctx context.Context, arg UpdateFCMTokenParams) error {
+	_, err := q.db.Exec(ctx, updateFCMToken, arg.TokenHash, arg.FcmToken)
 	return err
 }

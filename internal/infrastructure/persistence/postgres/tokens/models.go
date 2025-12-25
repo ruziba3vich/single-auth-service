@@ -31,6 +31,7 @@ type RefreshToken struct {
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	Revoked   bool               `json:"revoked"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	FcmToken  pgtype.Text        `json:"fcm_token"`
 }
 
 type User struct {

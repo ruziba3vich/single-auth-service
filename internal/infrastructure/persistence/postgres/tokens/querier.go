@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error
 	DeleteExpiredRefreshTokens(ctx context.Context, expiresAt pgtype.Timestamptz) (int64, error)
+	GetActiveFCMTokensByUserID(ctx context.Context, arg GetActiveFCMTokensByUserIDParams) ([]pgtype.Text, error)
 	GetActiveRefreshTokensByUserAndDevice(ctx context.Context, arg GetActiveRefreshTokensByUserAndDeviceParams) ([]RefreshToken, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetRefreshTokenByID(ctx context.Context, id pgtype.UUID) (RefreshToken, error)
@@ -22,6 +23,7 @@ type Querier interface {
 	RevokeRefreshTokensByDeviceID(ctx context.Context, deviceID pgtype.UUID) error
 	RevokeRefreshTokensByUserID(ctx context.Context, userID pgtype.UUID) error
 	RevokeRefreshTokensExceptDevice(ctx context.Context, arg RevokeRefreshTokensExceptDeviceParams) error
+	UpdateFCMToken(ctx context.Context, arg UpdateFCMTokenParams) error
 }
 
 var _ Querier = (*Queries)(nil)

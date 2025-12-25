@@ -87,3 +87,73 @@
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/ErrorResponse'
+
+/fcm/register:
+  post:
+    tags:
+      - FCM
+    summary: Register FCM token
+    description: Registers a Firebase Cloud Messaging token for push notifications. The token is associated with the session identified by the refresh token.
+    operationId: registerFCMToken
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/RegisterFCMTokenRequest'
+    responses:
+      '200':
+        description: FCM token registered successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MessageResponse'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+      '401':
+        description: Invalid or expired refresh token
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+
+/users/{user_id}/fcm-tokens:
+  get:
+    tags:
+      - FCM
+    summary: Get user FCM tokens
+    description: Retrieves all active FCM tokens for a user. Requires authentication.
+    operationId: getUserFCMTokens
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: User ID
+    responses:
+      '200':
+        description: FCM tokens retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/FCMTokensResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'
+      '403':
+        description: Forbidden - cannot access other user's tokens
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorResponse'

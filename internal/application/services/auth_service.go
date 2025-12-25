@@ -468,3 +468,34 @@ func (s *AuthService) RevokeToken(ctx context.Context, tokenValue string) error 
 
 	return s.tokenRepo.Revoke(ctx, storedToken.ID)
 }
+
+// RegisterFCMToken registers an FCM token for a refresh token session.
+func (s *AuthService) RegisterFCMToken(ctx context.Context, refreshToken, fcmToken string) error {
+	// Hash the refresh token to look it up
+	tokenHash := s.tokenGen.HashToken(refreshToken)
+
+	// Verify the refresh token exists and is valid
+	storedToken, err := s.tokenRepo.GetByHash(ctx, tokenHash)
+	if err != nil {
+		return errors.ErrInvalidGrant
+	}
+
+	if !storedToken.IsValid() {
+		return errors.ErrTokenRevoked
+	}
+
+	// Update the FCM token
+	return s.tokenRepo.UpdateFCMToken(ctx, tokenHash, fcmToken)
+}
+
+// GetUserFCMTokens retrieves all active FCM tokens for a user.
+func (s *AuthService) GetUserFCMTokens(ctx context.Context, userID uuid.UUID) (*dto.FCMTokensResponse, error) {
+	tokens, err := s.tokenRepo.GetActiveFCMTokensByUserID(ctx, userID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get FCM tokens")
+	}
+
+	return &dto.FCMTokensResponse{
+		FCMTokens: tokens,
+	}, nil
+}

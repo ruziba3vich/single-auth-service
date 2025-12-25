@@ -37,6 +37,8 @@ tags:
     description: Device management endpoints
   - name: Clients
     description: OAuth client management
+  - name: FCM
+    description: Firebase Cloud Messaging token management
 
 # Paths are loaded from separate files and bundled at build time
 # See: api/paths/*.yaml
@@ -86,6 +88,12 @@ paths:
     $ref: 'paths/devices.yaml#/~1logout~1others'
   /logout/all:
     $ref: 'paths/devices.yaml#/~1logout~1all'
+
+  # FCM Management
+  /fcm/register:
+    $ref: 'paths/auth.yaml#/~1fcm~1register'
+  /users/{user_id}/fcm-tokens:
+    $ref: 'paths/auth.yaml#/~1users~1{user_id}~1fcm-tokens'
 
 components:
   securitySchemes:
@@ -156,3 +164,9 @@ components:
       $ref: 'components/schemas.yaml#/JWKS'
     JWK:
       $ref: 'components/schemas.yaml#/JWK'
+
+    # FCM Schemas
+    RegisterFCMTokenRequest:
+      $ref: 'components/schemas.yaml#/RegisterFCMTokenRequest'
+    FCMTokensResponse:
+      $ref: 'components/schemas.yaml#/FCMTokensResponse'

@@ -126,7 +126,7 @@ func Load() *Config {
 			MinIdleConns: getEnvInt("REDIS_MIN_IDLE_CONNS", 5),
 		},
 		JWT: JWTConfig{
-			Issuer:              getEnv("JWT_ISSUER", "http://localhost:8888"),
+			Issuer:              getEnv("JWT_ISSUER", "https://single-auth-service.leetcoders.uz"),
 			AccessTokenTTL:      getEnvDuration("JWT_ACCESS_TOKEN_TTL", 10*time.Minute),
 			RefreshTokenTTL:     getEnvDuration("JWT_REFRESH_TOKEN_TTL", 168*time.Hour),
 			IDTokenTTL:          getEnvDuration("JWT_ID_TOKEN_TTL", 1*time.Hour),

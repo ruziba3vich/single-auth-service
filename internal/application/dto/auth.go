@@ -118,3 +118,14 @@ type ListDevicesResponse struct {
 type RevokeDeviceRequest struct {
 	DeviceID string `uri:"device_id" binding:"required,uuid"`
 }
+
+// RegisterFCMTokenRequest represents a request to register an FCM token for a session.
+type RegisterFCMTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+	FCMToken     string `json:"fcm_token" binding:"required"`
+}
+
+// FCMTokensResponse represents a list of active FCM tokens for a user.
+type FCMTokensResponse struct {
+	FCMTokens []string `json:"fcm_tokens"`
+}

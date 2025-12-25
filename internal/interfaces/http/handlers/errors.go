@@ -51,6 +51,16 @@ func handleAuthError(c *gin.Context, err error) {
 			"error":             "invalid_client",
 			"error_description": "invalid client",
 		})
+	case errors.Is(err, errors.ErrInvalidGrant):
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_grant",
+			"error_description": "invalid or expired token",
+		})
+	case errors.Is(err, errors.ErrTokenRevoked):
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "token_revoked",
+			"error_description": "token has been revoked",
+		})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":             "server_error",

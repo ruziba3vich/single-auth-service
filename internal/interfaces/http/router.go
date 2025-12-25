@@ -141,6 +141,15 @@ func NewRouter(cfg *config.Config, deps *RouterDeps) *Router {
 		protected.POST("/logout/device/:device_id", wrapWithDeviceID(server.LogoutDevice))
 		protected.POST("/logout/others", wrapWithLogoutAllOthersParams(server.LogoutAllOthers))
 		protected.POST("/logout/all", server.LogoutAll)
+
+		// FCM token queries (requires auth)
+		protected.GET("/users/:user_id/fcm-tokens", wrapWithUserID(server.GetUserFCMTokens))
+	}
+
+	// FCM endpoints (public, validates refresh token)
+	fcm := engine.Group("/fcm")
+	{
+		fcm.POST("/register", server.RegisterFCMToken)
 	}
 
 	// Log viewer endpoints (no auth for dev)
@@ -223,6 +232,19 @@ func wrapWithDeviceID(handler func(*gin.Context, openapi_types.UUID)) gin.Handle
 			return
 		}
 		handler(c, *deviceID)
+	}
+}
+
+// wrapWithUserID wraps handler that needs user_id path param
+func wrapWithUserID(handler func(*gin.Context, openapi_types.UUID)) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userIDStr := c.Param("user_id")
+		userID := parseUUID(userIDStr)
+		if userID == nil {
+			c.JSON(400, gin.H{"error": "invalid_request", "error_description": "invalid user_id"})
+			return
+		}
+		handler(c, *userID)
 	}
 }
 
