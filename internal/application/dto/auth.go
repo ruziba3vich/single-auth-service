@@ -6,28 +6,30 @@ import (
 	"github.com/google/uuid"
 )
 
-// RegisterRequest represents a user registration request.
+// RegisterRequest is the payload for user registration.
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
+	Username string  `json:"username" binding:"required"`
+	Phone    string  `json:"phone" binding:"required"`
+	Password string  `json:"password" binding:"required,min=8"`
+	Email    *string `json:"email,omitempty"`
 }
 
-// RegisterResponse represents a successful registration.
 type RegisterResponse struct {
-	UserID        uuid.UUID `json:"user_id"`
-	Email         string    `json:"email"`
-	EmailVerified bool      `json:"email_verified"`
-	CreatedAt     time.Time `json:"created_at"`
+	UserID    int64     `json:"user_id"`
+	Username  string    `json:"username"`
+	Phone     string    `json:"phone"`
+	Email     *string   `json:"email,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
-// LoginRequest represents a user login request.
+// LoginRequest accepts phone, email, or username as the login identifier.
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Login    string `json:"login" binding:"required"`
 	Password string `json:"password" binding:"required"`
 	ClientID string `json:"client_id" binding:"required"`
 }
 
-// LoginResponse represents a successful login with device-bound tokens.
+// LoginResponse contains device-bound tokens after successful login.
 type LoginResponse struct {
 	AccessToken  string    `json:"access_token"`
 	TokenType    string    `json:"token_type"`
@@ -38,12 +40,11 @@ type LoginResponse struct {
 	IDToken      string    `json:"id_token,omitempty"`
 }
 
-// LogoutRequest represents a logout request.
 type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
-// AuthorizeRequest represents an OAuth authorization request.
+// AuthorizeRequest is the OAuth 2.1 authorization endpoint request.
 type AuthorizeRequest struct {
 	ResponseType        string `form:"response_type" binding:"required"`
 	ClientID            string `form:"client_id" binding:"required"`
@@ -55,13 +56,12 @@ type AuthorizeRequest struct {
 	Nonce               string `form:"nonce"`
 }
 
-// AuthorizeResponse represents an authorization response (redirect parameters).
 type AuthorizeResponse struct {
 	Code  string `json:"code"`
 	State string `json:"state,omitempty"`
 }
 
-// TokenRequest represents an OAuth token request.
+// TokenRequest handles authorization_code and refresh_token grants.
 type TokenRequest struct {
 	GrantType    string `form:"grant_type" binding:"required"`
 	Code         string `form:"code"`
@@ -74,7 +74,6 @@ type TokenRequest struct {
 	DeviceID     string `form:"device_id"`
 }
 
-// TokenResponse represents an OAuth token response.
 type TokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
@@ -85,21 +84,20 @@ type TokenResponse struct {
 	DeviceID     string `json:"device_id,omitempty"`
 }
 
-// RefreshTokenRequest represents a token refresh request.
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 	ClientID     string `json:"client_id" binding:"required"`
 	DeviceID     string `json:"device_id" binding:"required"`
 }
 
-// RevokeTokenRequest represents a token revocation request.
 type RevokeTokenRequest struct {
 	Token         string `json:"token" binding:"required"`
 	TokenTypeHint string `json:"token_type_hint"`
 }
 
-// DeviceInfo represents a user device for API responses.
-type DeviceInfo struct {
+// SessionInfo is the API representation of a user session.
+type SessionInfo struct {
+	SessionID  uuid.UUID `json:"session_id"`
 	DeviceID   uuid.UUID `json:"device_id"`
 	DeviceName string    `json:"device_name,omitempty"`
 	UserAgent  string    `json:"user_agent"`
@@ -109,23 +107,17 @@ type DeviceInfo struct {
 	IsCurrent  bool      `json:"is_current"`
 }
 
-// ListDevicesResponse represents a list of user devices.
-type ListDevicesResponse struct {
-	Devices []DeviceInfo `json:"devices"`
-}
-
-// RevokeDeviceRequest represents a request to revoke a specific device.
-type RevokeDeviceRequest struct {
-	DeviceID string `uri:"device_id" binding:"required,uuid"`
-}
-
-// RegisterFCMTokenRequest represents a request to register an FCM token for a session.
+// RegisterFCMTokenRequest binds an FCM push token to a session.
 type RegisterFCMTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 	FCMToken     string `json:"fcm_token" binding:"required"`
 }
 
-// FCMTokensResponse represents a list of active FCM tokens for a user.
 type FCMTokensResponse struct {
 	FCMTokens []string `json:"fcm_tokens"`
+}
+
+// ListDevicesResponse lists all active sessions for a user.
+type ListDevicesResponse struct {
+	Sessions []SessionInfo `json:"sessions"`
 }

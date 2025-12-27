@@ -2,7 +2,7 @@ version: "2"
 sql:
   - engine: "postgresql"
     queries: "queries.sql"
-    schema: "../../../../../migrations/001_create_users.sql"
+    schema: "../../../../../migrations/000009_restructure_users.up.sql"
     gen:
       go:
         package: "users"

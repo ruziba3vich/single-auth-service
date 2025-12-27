@@ -12,10 +12,16 @@ import (
 
 type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) error
-	DeleteUser(ctx context.Context, id pgtype.UUID) error
-	ExistsUserByEmail(ctx context.Context, email string) (bool, error)
-	GetUserByEmail(ctx context.Context, email string) (User, error)
-	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	DeleteUser(ctx context.Context, id int64) error
+	ExistsUserByEmail(ctx context.Context, email pgtype.Text) (bool, error)
+	ExistsUserByPhone(ctx context.Context, phone string) (bool, error)
+	ExistsUserByUsername(ctx context.Context, username string) (bool, error)
+	GetUserByEmail(ctx context.Context, email pgtype.Text) (User, error)
+	GetUserByID(ctx context.Context, id int64) (User, error)
+	GetUserByLogin(ctx context.Context, phone string) (User, error)
+	GetUserByPhone(ctx context.Context, phone string) (User, error)
+	GetUserByUsername(ctx context.Context, username string) (User, error)
+	UpdateLastLogin(ctx context.Context, arg UpdateLastLoginParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
 }
 

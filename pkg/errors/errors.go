@@ -5,15 +5,23 @@ import (
 	"fmt"
 )
 
-// Domain errors - these map to specific HTTP responses
+// Domain errors that map to HTTP responses.
 var (
-	// User errors
-	ErrUserNotFound       = errors.New("user not found")
-	ErrUserAlreadyExists  = errors.New("user already exists")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrEmailNotVerified   = errors.New("email not verified")
+	// User
+	ErrUserNotFound          = errors.New("user not found")
+	ErrUserAlreadyExists     = errors.New("user already exists")
+	ErrPhoneAlreadyExists    = errors.New("phone already exists")
+	ErrUsernameAlreadyExists = errors.New("username already exists")
+	ErrEmailAlreadyExists    = errors.New("email already exists")
+	ErrInvalidCredentials    = errors.New("invalid credentials")
+	ErrUserBanned            = errors.New("user is banned")
 
-	// OAuth errors (RFC 6749 compliant)
+	// Session
+	ErrSessionNotFound      = errors.New("session not found")
+	ErrSessionAlreadyExists = errors.New("session already exists")
+	ErrSessionRevoked       = errors.New("session revoked")
+
+	// OAuth (RFC 6749)
 	ErrInvalidRequest          = errors.New("invalid_request")
 	ErrUnauthorizedClient      = errors.New("unauthorized_client")
 	ErrAccessDenied            = errors.New("access_denied")
@@ -24,35 +32,34 @@ var (
 	ErrInvalidGrant            = errors.New("invalid_grant")
 	ErrUnsupportedGrantType    = errors.New("unsupported_grant_type")
 
-	// Token errors
-	ErrTokenExpired      = errors.New("token expired")
-	ErrTokenRevoked      = errors.New("token revoked")
-	ErrTokenInvalid      = errors.New("token invalid")
-	ErrTokenMismatch     = errors.New("token mismatch")
-	ErrRefreshTokenUsed  = errors.New("refresh token already used")
+	// Token
+	ErrTokenExpired  = errors.New("token expired")
+	ErrTokenRevoked  = errors.New("token revoked")
+	ErrTokenInvalid  = errors.New("token invalid")
+	ErrTokenMismatch = errors.New("token mismatch")
 
-	// Device errors
+	// Device
 	ErrDeviceNotFound   = errors.New("device not found")
 	ErrDeviceRevoked    = errors.New("device revoked")
 	ErrDeviceMismatch   = errors.New("device mismatch")
 	ErrDeviceIDRequired = errors.New("device_id required")
 
-	// Client errors
+	// Client
 	ErrClientNotFound      = errors.New("client not found")
 	ErrInvalidRedirectURI  = errors.New("invalid redirect_uri")
 	ErrInvalidClientSecret = errors.New("invalid client secret")
 
-	// PKCE errors
+	// PKCE
 	ErrPKCERequired         = errors.New("PKCE required")
 	ErrInvalidCodeChallenge = errors.New("invalid code_challenge")
 	ErrInvalidCodeVerifier  = errors.New("invalid code_verifier")
 
-	// Key errors
-	ErrKeyNotFound     = errors.New("signing key not found")
-	ErrNoActiveKey     = errors.New("no active signing key")
-	ErrKeyExpired      = errors.New("signing key expired")
+	// Signing keys
+	ErrKeyNotFound = errors.New("signing key not found")
+	ErrNoActiveKey = errors.New("no active signing key")
+	ErrKeyExpired  = errors.New("signing key expired")
 
-	// General errors
+	// General
 	ErrNotFound     = errors.New("not found")
 	ErrInternal     = errors.New("internal error")
 	ErrUnauthorized = errors.New("unauthorized")
@@ -60,7 +67,7 @@ var (
 	ErrValidation   = errors.New("validation error")
 )
 
-// OAuthError represents an OAuth 2.0 error response.
+// OAuthError is an RFC 6749 compliant error response.
 type OAuthError struct {
 	Code        string `json:"error"`
 	Description string `json:"error_description,omitempty"`
@@ -75,21 +82,17 @@ func (e *OAuthError) Error() string {
 	return e.Code
 }
 
-// NewOAuthError creates a new OAuth error.
 func NewOAuthError(code, description string) *OAuthError {
-	return &OAuthError{
-		Code:        code,
-		Description: description,
-	}
+	return &OAuthError{Code: code, Description: description}
 }
 
-// WithState adds state parameter to the error.
+// WithState attaches the OAuth state param for redirect errors.
 func (e *OAuthError) WithState(state string) *OAuthError {
 	e.State = state
 	return e
 }
 
-// ValidationError represents a field validation error.
+// ValidationError holds a single field validation failure.
 type ValidationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
@@ -99,7 +102,7 @@ func (e *ValidationError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Field, e.Message)
 }
 
-// ValidationErrors is a collection of validation errors.
+// ValidationErrors collects multiple field validation failures.
 type ValidationErrors struct {
 	Errors []ValidationError `json:"errors"`
 }
@@ -108,22 +111,20 @@ func (e *ValidationErrors) Error() string {
 	return fmt.Sprintf("validation failed: %d errors", len(e.Errors))
 }
 
-// Add appends a validation error.
 func (e *ValidationErrors) Add(field, message string) {
 	e.Errors = append(e.Errors, ValidationError{Field: field, Message: message})
 }
 
-// HasErrors returns true if there are validation errors.
 func (e *ValidationErrors) HasErrors() bool {
 	return len(e.Errors) > 0
 }
 
-// Is wraps errors.Is for convenience.
+// Is is a convenience wrapper for errors.Is.
 func Is(err, target error) bool {
 	return errors.Is(err, target)
 }
 
-// Wrap wraps an error with additional context.
+// Wrap adds context to an error while preserving the original.
 func Wrap(err error, message string) error {
 	if err == nil {
 		return nil

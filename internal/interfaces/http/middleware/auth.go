@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -168,15 +169,20 @@ func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 }
 
 // GetUserID extracts user ID from context.
-func GetUserID(c *gin.Context) (uuid.UUID, error) {
+func GetUserID(c *gin.Context) (int64, error) {
 	userIDStr, exists := c.Get(string(ContextKeyUserID))
 	if !exists {
-		return uuid.Nil, errors.ErrUnauthorized
+		return 0, errors.ErrUnauthorized
 	}
 
-	userID, err := uuid.Parse(userIDStr.(string))
-	if err != nil {
-		return uuid.Nil, errors.ErrUnauthorized
+	str, ok := userIDStr.(string)
+	if !ok {
+		return 0, errors.ErrUnauthorized
+	}
+
+	var userID int64
+	if _, err := fmt.Sscanf(str, "%d", &userID); err != nil {
+		return 0, errors.ErrUnauthorized
 	}
 
 	return userID, nil

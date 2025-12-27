@@ -2,73 +2,81 @@ package user
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
-// User represents the core user entity in the identity system.
-// This is the aggregate root for user-related operations.
-type User struct {
-	ID            uuid.UUID
-	Email         string
-	PasswordHash  string
-	EmailVerified bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
-// NewUser creates a new user with validated email and hashed password.
-// The password must be pre-hashed before calling this constructor.
-func NewUser(email, passwordHash string) *User {
-	now := time.Now().UTC()
-	return &User{
-		ID:            uuid.New(),
-		Email:         email,
-		PasswordHash:  passwordHash,
-		EmailVerified: false,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-}
-
-// VerifyEmail marks the user's email as verified.
-func (u *User) VerifyEmail() {
-	u.EmailVerified = true
-	u.UpdatedAt = time.Now().UTC()
-}
-
-// UpdatePassword updates the user's password hash.
-func (u *User) UpdatePassword(newPasswordHash string) {
-	u.PasswordHash = newPasswordHash
-	u.UpdatedAt = time.Now().UTC()
-}
-
-// Provider represents the authentication provider type.
-type Provider string
+type UserStatus int
 
 const (
-	ProviderLocal  Provider = "local"
-	ProviderGoogle Provider = "google"
-	ProviderApple  Provider = "apple"
+	StatusInactive UserStatus = 0
+	StatusActive   UserStatus = 1
+	StatusBanned   UserStatus = 2
 )
 
-// UserIdentity represents a linked external identity provider account.
-// A user can have multiple identities (local password, Google, Apple, etc.)
-type UserIdentity struct {
-	ID             uuid.UUID
-	UserID         uuid.UUID
-	Provider       Provider
-	ProviderUserID string
-	CreatedAt      time.Time
+type Gender int16
+
+const (
+	GenderUnspecified Gender = 0
+	GenderMale        Gender = 1
+	GenderFemale      Gender = 2
+)
+
+// User is the core identity entity. Password is stored as Argon2id hash.
+type User struct {
+	ID          int64
+	Username    string
+	SahiyUserID *int64
+	Phone       string
+	Password    []byte
+	Avatar      *string
+	BirthDate   time.Time
+	Gender      *Gender
+	ForbidLogin *int16
+	Email       *string
+	ProfileID   *int64
+	RegisterIP  *string
+	LastLoginIP *string
+	Status      UserStatus
+	CreatedAt   time.Time
+	LastLoginAt time.Time
 }
 
-// NewUserIdentity creates a new identity link for a user.
-func NewUserIdentity(userID uuid.UUID, provider Provider, providerUserID string) *UserIdentity {
-	return &UserIdentity{
-		ID:             uuid.New(),
-		UserID:         userID,
-		Provider:       provider,
-		ProviderUserID: providerUserID,
-		CreatedAt:      time.Now().UTC(),
+// NewUser creates a user with required fields. Password must be pre-hashed.
+func NewUser(username, phone string, passwordHash []byte) *User {
+	now := time.Now().UTC()
+	return &User{
+		Username:    username,
+		Phone:       phone,
+		Password:    passwordHash,
+		Status:      StatusActive,
+		BirthDate:   now,
+		CreatedAt:   now,
+		LastLoginAt: now,
 	}
+}
+
+// IsActive returns true if the user can log in (active status and not forbidden).
+func (u *User) IsActive() bool {
+	if u.Status != StatusActive {
+		return false
+	}
+	if u.ForbidLogin != nil && *u.ForbidLogin == 1 {
+		return false
+	}
+	return true
+}
+
+// UpdatePassword replaces the password hash.
+func (u *User) UpdatePassword(newPasswordHash []byte) {
+	u.Password = newPasswordHash
+}
+
+// UpdateLastLogin records login time and IP address.
+func (u *User) UpdateLastLogin(ip string) {
+	u.LastLoginAt = time.Now().UTC()
+	u.LastLoginIP = &ip
+}
+
+// SetEmail sets the user's email address.
+func (u *User) SetEmail(email string) {
+	u.Email = &email
 }

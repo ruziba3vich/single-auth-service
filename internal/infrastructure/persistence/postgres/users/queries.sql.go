@@ -12,27 +12,50 @@ import (
 )
 
 const createUser = `-- name: CreateUser :exec
-INSERT INTO users (id, email, password_hash, email_verified, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO users (
+    username, sahiy_user_id, phone, password, avatar, birth_date,
+    gender, forbid_login, email, profile_id, register_ip,
+    lastlogin_ip, status, created_at, last_login_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+)
 `
 
 type CreateUserParams struct {
-	ID            pgtype.UUID        `json:"id"`
-	Email         string             `json:"email"`
-	PasswordHash  string             `json:"password_hash"`
-	EmailVerified bool               `json:"email_verified"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	Username    string             `json:"username"`
+	SahiyUserID pgtype.Int8        `json:"sahiy_user_id"`
+	Phone       string             `json:"phone"`
+	Password    []byte             `json:"password"`
+	Avatar      pgtype.Text        `json:"avatar"`
+	BirthDate   pgtype.Timestamptz `json:"birth_date"`
+	Gender      pgtype.Int2        `json:"gender"`
+	ForbidLogin pgtype.Int2        `json:"forbid_login"`
+	Email       pgtype.Text        `json:"email"`
+	ProfileID   pgtype.Int8        `json:"profile_id"`
+	RegisterIp  pgtype.Text        `json:"register_ip"`
+	LastloginIp pgtype.Text        `json:"lastlogin_ip"`
+	Status      int32              `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	LastLoginAt pgtype.Timestamptz `json:"last_login_at"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 	_, err := q.db.Exec(ctx, createUser,
-		arg.ID,
+		arg.Username,
+		arg.SahiyUserID,
+		arg.Phone,
+		arg.Password,
+		arg.Avatar,
+		arg.BirthDate,
+		arg.Gender,
+		arg.ForbidLogin,
 		arg.Email,
-		arg.PasswordHash,
-		arg.EmailVerified,
+		arg.ProfileID,
+		arg.RegisterIp,
+		arg.LastloginIp,
+		arg.Status,
 		arg.CreatedAt,
-		arg.UpdatedAt,
+		arg.LastLoginAt,
 	)
 	return err
 }
@@ -41,7 +64,7 @@ const deleteUser = `-- name: DeleteUser :exec
 DELETE FROM users WHERE id = $1
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
+func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteUser, id)
 	return err
 }
@@ -50,70 +73,229 @@ const existsUserByEmail = `-- name: ExistsUserByEmail :one
 SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)
 `
 
-func (q *Queries) ExistsUserByEmail(ctx context.Context, email string) (bool, error) {
+func (q *Queries) ExistsUserByEmail(ctx context.Context, email pgtype.Text) (bool, error) {
 	row := q.db.QueryRow(ctx, existsUserByEmail, email)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, email_verified, created_at, updated_at FROM users WHERE email = $1
+const existsUserByPhone = `-- name: ExistsUserByPhone :one
+SELECT EXISTS(SELECT 1 FROM users WHERE phone = $1)
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+func (q *Queries) ExistsUserByPhone(ctx context.Context, phone string) (bool, error) {
+	row := q.db.QueryRow(ctx, existsUserByPhone, phone)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const existsUserByUsername = `-- name: ExistsUserByUsername :one
+SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)
+`
+
+func (q *Queries) ExistsUserByUsername(ctx context.Context, username string) (bool, error) {
+	row := q.db.QueryRow(ctx, existsUserByUsername, username)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, username, sahiy_user_id, phone, password, avatar, birth_date, gender, forbid_login, email, profile_id, register_ip, lastlogin_ip, status, created_at, last_login_at FROM users WHERE email = $1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.Username,
+		&i.SahiyUserID,
+		&i.Phone,
+		&i.Password,
+		&i.Avatar,
+		&i.BirthDate,
+		&i.Gender,
+		&i.ForbidLogin,
 		&i.Email,
-		&i.PasswordHash,
-		&i.EmailVerified,
+		&i.ProfileID,
+		&i.RegisterIp,
+		&i.LastloginIp,
+		&i.Status,
 		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.LastLoginAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, email_verified, created_at, updated_at FROM users WHERE id = $1
+SELECT id, username, sahiy_user_id, phone, password, avatar, birth_date, gender, forbid_login, email, profile_id, register_ip, lastlogin_ip, status, created_at, last_login_at FROM users WHERE id = $1
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.Username,
+		&i.SahiyUserID,
+		&i.Phone,
+		&i.Password,
+		&i.Avatar,
+		&i.BirthDate,
+		&i.Gender,
+		&i.ForbidLogin,
 		&i.Email,
-		&i.PasswordHash,
-		&i.EmailVerified,
+		&i.ProfileID,
+		&i.RegisterIp,
+		&i.LastloginIp,
+		&i.Status,
 		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.LastLoginAt,
 	)
 	return i, err
 }
 
+const getUserByLogin = `-- name: GetUserByLogin :one
+SELECT id, username, sahiy_user_id, phone, password, avatar, birth_date, gender, forbid_login, email, profile_id, register_ip, lastlogin_ip, status, created_at, last_login_at FROM users
+WHERE phone = $1 OR email = $1 OR username = $1
+`
+
+func (q *Queries) GetUserByLogin(ctx context.Context, phone string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByLogin, phone)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.SahiyUserID,
+		&i.Phone,
+		&i.Password,
+		&i.Avatar,
+		&i.BirthDate,
+		&i.Gender,
+		&i.ForbidLogin,
+		&i.Email,
+		&i.ProfileID,
+		&i.RegisterIp,
+		&i.LastloginIp,
+		&i.Status,
+		&i.CreatedAt,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
+const getUserByPhone = `-- name: GetUserByPhone :one
+SELECT id, username, sahiy_user_id, phone, password, avatar, birth_date, gender, forbid_login, email, profile_id, register_ip, lastlogin_ip, status, created_at, last_login_at FROM users WHERE phone = $1
+`
+
+func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByPhone, phone)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.SahiyUserID,
+		&i.Phone,
+		&i.Password,
+		&i.Avatar,
+		&i.BirthDate,
+		&i.Gender,
+		&i.ForbidLogin,
+		&i.Email,
+		&i.ProfileID,
+		&i.RegisterIp,
+		&i.LastloginIp,
+		&i.Status,
+		&i.CreatedAt,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
+const getUserByUsername = `-- name: GetUserByUsername :one
+SELECT id, username, sahiy_user_id, phone, password, avatar, birth_date, gender, forbid_login, email, profile_id, register_ip, lastlogin_ip, status, created_at, last_login_at FROM users WHERE username = $1
+`
+
+func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByUsername, username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.SahiyUserID,
+		&i.Phone,
+		&i.Password,
+		&i.Avatar,
+		&i.BirthDate,
+		&i.Gender,
+		&i.ForbidLogin,
+		&i.Email,
+		&i.ProfileID,
+		&i.RegisterIp,
+		&i.LastloginIp,
+		&i.Status,
+		&i.CreatedAt,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
+const updateLastLogin = `-- name: UpdateLastLogin :exec
+UPDATE users
+SET last_login_at = NOW(), lastlogin_ip = $2
+WHERE id = $1
+`
+
+type UpdateLastLoginParams struct {
+	ID          int64       `json:"id"`
+	LastloginIp pgtype.Text `json:"lastlogin_ip"`
+}
+
+func (q *Queries) UpdateLastLogin(ctx context.Context, arg UpdateLastLoginParams) error {
+	_, err := q.db.Exec(ctx, updateLastLogin, arg.ID, arg.LastloginIp)
+	return err
+}
+
 const updateUser = `-- name: UpdateUser :exec
 UPDATE users
-SET email = $2, password_hash = $3, email_verified = $4, updated_at = $5
+SET username = $2, sahiy_user_id = $3, phone = $4, password = $5,
+    avatar = $6, birth_date = $7, gender = $8, forbid_login = $9,
+    email = $10, profile_id = $11, status = $12
 WHERE id = $1
 `
 
 type UpdateUserParams struct {
-	ID            pgtype.UUID        `json:"id"`
-	Email         string             `json:"email"`
-	PasswordHash  string             `json:"password_hash"`
-	EmailVerified bool               `json:"email_verified"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	ID          int64              `json:"id"`
+	Username    string             `json:"username"`
+	SahiyUserID pgtype.Int8        `json:"sahiy_user_id"`
+	Phone       string             `json:"phone"`
+	Password    []byte             `json:"password"`
+	Avatar      pgtype.Text        `json:"avatar"`
+	BirthDate   pgtype.Timestamptz `json:"birth_date"`
+	Gender      pgtype.Int2        `json:"gender"`
+	ForbidLogin pgtype.Int2        `json:"forbid_login"`
+	Email       pgtype.Text        `json:"email"`
+	ProfileID   pgtype.Int8        `json:"profile_id"`
+	Status      int32              `json:"status"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
 	_, err := q.db.Exec(ctx, updateUser,
 		arg.ID,
+		arg.Username,
+		arg.SahiyUserID,
+		arg.Phone,
+		arg.Password,
+		arg.Avatar,
+		arg.BirthDate,
+		arg.Gender,
+		arg.ForbidLogin,
 		arg.Email,
-		arg.PasswordHash,
-		arg.EmailVerified,
-		arg.UpdatedAt,
+		arg.ProfileID,
+		arg.Status,
 	)
 	return err
 }

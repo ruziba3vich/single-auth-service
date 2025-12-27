@@ -103,7 +103,7 @@ func (c *Client) ValidateScopes(scopes string) bool {
 type AuthorizationCode struct {
 	Code                string
 	ClientID            string
-	UserID              uuid.UUID
+	UserID              int64
 	DeviceID            uuid.UUID
 	RedirectURI         string
 	Scope               string
@@ -116,7 +116,8 @@ type AuthorizationCode struct {
 // NewAuthorizationCode creates a new authorization code.
 func NewAuthorizationCode(
 	code, clientID string,
-	userID, deviceID uuid.UUID,
+	userID int64,
+	deviceID uuid.UUID,
 	redirectURI, scope, codeChallenge, codeChallengeMethod string,
 	ttl time.Duration,
 ) *AuthorizationCode {

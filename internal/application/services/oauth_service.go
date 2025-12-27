@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,10 +11,9 @@ import (
 
 	"github.com/ruziba3vich/single-auth-service/config"
 	"github.com/ruziba3vich/single-auth-service/internal/application/dto"
-	"github.com/ruziba3vich/single-auth-service/internal/domain/device"
 	"github.com/ruziba3vich/single-auth-service/internal/domain/keys"
 	"github.com/ruziba3vich/single-auth-service/internal/domain/oauth"
-	"github.com/ruziba3vich/single-auth-service/internal/domain/token"
+	"github.com/ruziba3vich/single-auth-service/internal/domain/session"
 	"github.com/ruziba3vich/single-auth-service/internal/domain/user"
 	"github.com/ruziba3vich/single-auth-service/internal/infrastructure/crypto"
 	"github.com/ruziba3vich/single-auth-service/pkg/errors"
@@ -22,16 +22,15 @@ import (
 
 // OAuthService handles OAuth 2.1 flows.
 type OAuthService struct {
-	userRepo       user.Repository
-	clientRepo     oauth.ClientRepository
-	authCodeRepo   oauth.AuthorizationCodeRepository
-	tokenRepo      token.RefreshTokenRepository
-	deviceRepo     device.Repository
-	keyRepo        keys.Repository
-	hasher         *crypto.Argon2Hasher
-	tokenGen       *crypto.TokenGenerator
-	jwtManager     *jwt.Manager
-	cfg            *config.Config
+	userRepo     user.Repository
+	clientRepo   oauth.ClientRepository
+	authCodeRepo oauth.AuthorizationCodeRepository
+	sessionRepo  session.Repository
+	keyRepo      keys.Repository
+	hasher       *crypto.Argon2Hasher
+	tokenGen     *crypto.TokenGenerator
+	jwtManager   *jwt.Manager
+	cfg          *config.Config
 }
 
 // NewOAuthService creates a new OAuth service.
@@ -39,8 +38,7 @@ func NewOAuthService(
 	userRepo user.Repository,
 	clientRepo oauth.ClientRepository,
 	authCodeRepo oauth.AuthorizationCodeRepository,
-	tokenRepo token.RefreshTokenRepository,
-	deviceRepo device.Repository,
+	sessionRepo session.Repository,
 	keyRepo keys.Repository,
 	hasher *crypto.Argon2Hasher,
 	tokenGen *crypto.TokenGenerator,
@@ -51,8 +49,7 @@ func NewOAuthService(
 		userRepo:     userRepo,
 		clientRepo:   clientRepo,
 		authCodeRepo: authCodeRepo,
-		tokenRepo:    tokenRepo,
-		deviceRepo:   deviceRepo,
+		sessionRepo:  sessionRepo,
 		keyRepo:      keyRepo,
 		hasher:       hasher,
 		tokenGen:     tokenGen,
@@ -63,11 +60,11 @@ func NewOAuthService(
 
 // AuthorizeRequest represents the result of authorization request validation.
 type AuthorizeResult struct {
-	Client       *oauth.Client
-	RedirectURI  string
-	State        string
-	Scope        string
-	Nonce        string
+	Client              *oauth.Client
+	RedirectURI         string
+	State               string
+	Scope               string
+	Nonce               string
 	CodeChallenge       string
 	CodeChallengeMethod string
 }
@@ -125,7 +122,7 @@ func (s *OAuthService) ValidateAuthorizeRequest(ctx context.Context, req *dto.Au
 func (s *OAuthService) CreateAuthorizationCode(
 	ctx context.Context,
 	result *AuthorizeResult,
-	userID uuid.UUID,
+	userID int64,
 	deviceID uuid.UUID,
 ) (string, error) {
 	// Generate authorization code
@@ -235,14 +232,9 @@ func (s *OAuthService) ExchangeAuthorizationCode(
 		return nil, errors.NewOAuthError("invalid_grant", "user not found")
 	}
 
-	// Get or create device
-	dev, err := s.deviceRepo.GetByID(ctx, authCode.DeviceID)
-	if err != nil {
-		// Device might not exist if this is a fresh authorization
-		dev = device.NewDevice(u.ID, client.ClientID, userAgent, ipAddress)
-		if err := s.deviceRepo.Create(ctx, dev); err != nil {
-			return nil, errors.Wrap(err, "failed to create device")
-		}
+	// Check if user is active
+	if !u.IsActive() {
+		return nil, errors.NewOAuthError("invalid_grant", "user account is not active")
 	}
 
 	// Get signing key
@@ -251,12 +243,39 @@ func (s *OAuthService) ExchangeAuthorizationCode(
 		return nil, errors.Wrap(err, "failed to get signing key")
 	}
 
+	// Generate refresh token
+	refreshTokenValue, err := s.tokenGen.GenerateRefreshToken()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate refresh token")
+	}
+
+	// Create session info
+	sessionInfo := &session.SessionInfo{
+		UserAgent: userAgent,
+	}
+
+	// Create session with refresh token
+	refreshTokenHash := s.tokenGen.HashToken(refreshTokenValue)
+	sess := session.NewUserSession(
+		u.ID,
+		refreshTokenHash,
+		client.ClientID,
+		ipAddress,
+		sessionInfo,
+		authCode.Scope,
+		s.cfg.JWT.RefreshTokenTTL,
+	)
+
+	if err := s.sessionRepo.Create(ctx, sess); err != nil {
+		return nil, errors.Wrap(err, "failed to create session")
+	}
+
 	// Generate access token
 	accessToken, err := s.jwtManager.CreateAccessToken(
 		signingKey,
-		u.ID.String(),
+		strconv.FormatInt(u.ID, 10),
 		[]string{client.ClientID},
-		dev.ID.String(),
+		sess.DeviceID.String(),
 		client.ClientID,
 		authCode.Scope,
 		s.cfg.JWT.AccessTokenTTL,
@@ -265,36 +284,20 @@ func (s *OAuthService) ExchangeAuthorizationCode(
 		return nil, errors.Wrap(err, "failed to create access token")
 	}
 
-	// Generate refresh token
-	refreshTokenValue, err := s.tokenGen.GenerateRefreshToken()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to generate refresh token")
-	}
-
-	refreshTokenHash := s.tokenGen.HashToken(refreshTokenValue)
-	refreshToken := token.NewRefreshToken(
-		u.ID,
-		client.ClientID,
-		dev.ID,
-		refreshTokenHash,
-		authCode.Scope,
-		s.cfg.JWT.RefreshTokenTTL,
-	)
-
-	if err := s.tokenRepo.Create(ctx, refreshToken); err != nil {
-		return nil, errors.Wrap(err, "failed to store refresh token")
-	}
-
 	// Generate ID token if openid scope
 	var idToken string
 	if strings.Contains(authCode.Scope, "openid") {
+		email := ""
+		if u.Email != nil {
+			email = *u.Email
+		}
 		idToken, err = s.jwtManager.CreateIDToken(
 			signingKey,
-			u.ID.String(),
+			strconv.FormatInt(u.ID, 10),
 			client.ClientID,
-			u.Email,
-			u.EmailVerified,
-			"", // nonce would come from original authorize request
+			email,
+			false, // email not verified by default
+			"",    // nonce would come from original authorize request
 			time.Now().UTC(),
 			s.cfg.JWT.IDTokenTTL,
 		)
@@ -310,7 +313,7 @@ func (s *OAuthService) ExchangeAuthorizationCode(
 		RefreshToken: refreshTokenValue,
 		Scope:        authCode.Scope,
 		IDToken:      idToken,
-		DeviceID:     dev.ID.String(),
+		DeviceID:     sess.DeviceID.String(),
 	}, nil
 }
 

@@ -10,8 +10,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// Argon2Hasher implements password hashing using Argon2id.
-// Argon2id is the recommended algorithm for password hashing (OWASP).
+// Argon2Hasher hashes passwords using Argon2id (OWASP recommended).
 type Argon2Hasher struct {
 	memory      uint32
 	iterations  uint32
@@ -20,7 +19,6 @@ type Argon2Hasher struct {
 	keyLength   uint32
 }
 
-// NewArgon2Hasher creates a new Argon2id hasher with the given parameters.
 func NewArgon2Hasher(memory, iterations uint32, parallelism uint8, saltLength, keyLength uint32) *Argon2Hasher {
 	return &Argon2Hasher{
 		memory:      memory,
@@ -31,8 +29,7 @@ func NewArgon2Hasher(memory, iterations uint32, parallelism uint8, saltLength, k
 	}
 }
 
-// Hash generates an Argon2id hash of the password.
-// Returns a string in the format: $argon2id$v=19$m=65536,t=3,p=4$<salt>$<hash>
+// Hash returns a PHC-formatted string: $argon2id$v=19$m=65536,t=3,p=4$<salt>$<hash>
 func (h *Argon2Hasher) Hash(password string) (string, error) {
 	salt := make([]byte, h.saltLength)
 	if _, err := rand.Read(salt); err != nil {
@@ -48,7 +45,6 @@ func (h *Argon2Hasher) Hash(password string) (string, error) {
 		h.keyLength,
 	)
 
-	// Encode to PHC string format
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
@@ -65,16 +61,13 @@ func (h *Argon2Hasher) Hash(password string) (string, error) {
 	return encoded, nil
 }
 
-// Verify checks if a password matches an Argon2id hash.
-// Uses constant-time comparison to prevent timing attacks.
+// Verify checks the password against a stored hash using constant-time comparison.
 func (h *Argon2Hasher) Verify(password, encodedHash string) (bool, error) {
-	// Parse the encoded hash
 	params, salt, hash, err := h.decodeHash(encodedHash)
 	if err != nil {
 		return false, err
 	}
 
-	// Compute the hash of the provided password using the same parameters
 	computedHash := argon2.IDKey(
 		[]byte(password),
 		salt,
@@ -84,7 +77,6 @@ func (h *Argon2Hasher) Verify(password, encodedHash string) (bool, error) {
 		params.keyLength,
 	)
 
-	// Constant-time comparison to prevent timing attacks
 	if subtle.ConstantTimeCompare(hash, computedHash) == 1 {
 		return true, nil
 	}
@@ -92,8 +84,7 @@ func (h *Argon2Hasher) Verify(password, encodedHash string) (bool, error) {
 	return false, nil
 }
 
-// NeedsRehash checks if the hash was created with different parameters.
-// Used to upgrade hashes when security parameters change.
+// NeedsRehash returns true if the hash uses outdated parameters.
 func (h *Argon2Hasher) NeedsRehash(encodedHash string) (bool, error) {
 	params, _, _, err := h.decodeHash(encodedHash)
 	if err != nil {
@@ -106,7 +97,25 @@ func (h *Argon2Hasher) NeedsRehash(encodedHash string) (bool, error) {
 		params.keyLength != h.keyLength, nil
 }
 
-// argon2Params holds the parameters extracted from an encoded hash.
+// HashToBytes is like Hash but returns []byte for bytea columns.
+func (h *Argon2Hasher) HashToBytes(password string) ([]byte, error) {
+	hash, err := h.Hash(password)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(hash), nil
+}
+
+// VerifyBytes is like Verify but accepts []byte hash.
+func (h *Argon2Hasher) VerifyBytes(password string, encodedHash []byte) (bool, error) {
+	return h.Verify(password, string(encodedHash))
+}
+
+// NeedsRehashBytes is like NeedsRehash but accepts []byte hash.
+func (h *Argon2Hasher) NeedsRehashBytes(encodedHash []byte) (bool, error) {
+	return h.NeedsRehash(string(encodedHash))
+}
+
 type argon2Params struct {
 	memory      uint32
 	iterations  uint32
@@ -114,7 +123,7 @@ type argon2Params struct {
 	keyLength   uint32
 }
 
-// decodeHash parses an encoded Argon2id hash string.
+// decodeHash parses a PHC-formatted Argon2id hash string.
 func (h *Argon2Hasher) decodeHash(encodedHash string) (*argon2Params, []byte, []byte, error) {
 	parts := strings.Split(encodedHash, "$")
 	if len(parts) != 6 {

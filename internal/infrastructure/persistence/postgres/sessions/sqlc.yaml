@@ -2,13 +2,10 @@ version: "2"
 sql:
   - engine: "postgresql"
     queries: "queries.sql"
-    schema:
-      - "../../../../../migrations/001_create_users.sql"
-      - "../../../../../migrations/003_create_oauth_clients.sql"
-      - "../../../../../migrations/004_create_user_devices.sql"
+    schema: "../../../../../migrations/000010_create_user_sessions.up.sql"
     gen:
       go:
-        package: "devices"
+        package: "sessions"
         out: "."
         sql_package: "pgx/v5"
         emit_json_tags: true

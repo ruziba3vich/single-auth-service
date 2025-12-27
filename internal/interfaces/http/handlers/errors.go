@@ -11,10 +11,25 @@ import (
 // handleAuthError converts domain errors to HTTP responses.
 func handleAuthError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, errors.ErrPhoneAlreadyExists):
+		c.JSON(http.StatusConflict, gin.H{
+			"error":             "phone_exists",
+			"error_description": "user with this phone already exists",
+		})
+	case errors.Is(err, errors.ErrUsernameAlreadyExists):
+		c.JSON(http.StatusConflict, gin.H{
+			"error":             "username_exists",
+			"error_description": "user with this username already exists",
+		})
+	case errors.Is(err, errors.ErrEmailAlreadyExists):
+		c.JSON(http.StatusConflict, gin.H{
+			"error":             "email_exists",
+			"error_description": "user with this email already exists",
+		})
 	case errors.Is(err, errors.ErrUserAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{
 			"error":             "user_exists",
-			"error_description": "user with this email already exists",
+			"error_description": "user already exists",
 		})
 	case errors.Is(err, errors.ErrInvalidCredentials):
 		c.JSON(http.StatusUnauthorized, gin.H{

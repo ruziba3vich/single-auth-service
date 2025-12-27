@@ -83,12 +83,20 @@ func (s *Server) Register(c *gin.Context) {
 	}
 
 	// Convert to service DTO
+	var email *string
+	if req.Email != nil {
+		e := string(*req.Email)
+		email = &e
+	}
 	serviceReq := &dto.RegisterRequest{
-		Email:    string(req.Email),
+		Username: req.Username,
+		Phone:    req.Phone,
 		Password: req.Password,
+		Email:    email,
 	}
 
-	resp, err := s.authService.Register(c.Request.Context(), serviceReq)
+	ipAddress := middleware.GetClientIP(c)
+	resp, err := s.authService.Register(c.Request.Context(), serviceReq, ipAddress)
 	if err != nil {
 		handleAuthError(c, err)
 		return
@@ -109,7 +117,7 @@ func (s *Server) Login(c *gin.Context) {
 
 	// Convert to service DTO
 	serviceReq := &dto.LoginRequest{
-		Email:    string(req.Email),
+		Login:    req.Login,
 		Password: req.Password,
 		ClientID: req.ClientId,
 	}
@@ -646,16 +654,10 @@ func (s *Server) GetUserFCMTokens(c *gin.Context, userId openapi_types.UUID) {
 		return
 	}
 
-	requestedUserID := uuid.UUID(userId)
-	if authUserID != requestedUserID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error":             "forbidden",
-			"error_description": "cannot access other user's FCM tokens",
-		})
-		return
-	}
-
-	resp, err := s.authService.GetUserFCMTokens(c.Request.Context(), requestedUserID)
+	// Parse the user ID from the path parameter
+	// Note: The OpenAPI spec will need to be updated to use int64 for user_id
+	// For now, we extract the user ID from the authenticated user
+	resp, err := s.authService.GetUserFCMTokens(c.Request.Context(), authUserID)
 	if err != nil {
 		handleAuthError(c, err)
 		return

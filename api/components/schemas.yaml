@@ -82,33 +82,47 @@ LiveResponse:
 RegisterRequest:
   type: object
   required:
-    - email
+    - username
+    - phone
     - password
   properties:
-    email:
+    username:
       type: string
-      format: email
-      example: user@example.com
+      description: Unique username
+      example: john_doe
+    phone:
+      type: string
+      description: Phone number (must be unique)
+      example: "+998901234567"
     password:
       type: string
       format: password
       minLength: 8
       example: SecureP@ss123
+    email:
+      type: string
+      format: email
+      description: Optional email address
+      example: user@example.com
 
 RegisterResponse:
   type: object
   properties:
     user_id:
+      type: integer
+      format: int64
+      description: User ID
+      example: 12345
+    username:
       type: string
-      format: uuid
-      example: 550e8400-e29b-41d4-a716-446655440000
+      example: john_doe
+    phone:
+      type: string
+      example: "+998901234567"
     email:
       type: string
       format: email
       example: user@example.com
-    email_verified:
-      type: boolean
-      example: false
     created_at:
       type: string
       format: date-time
@@ -116,14 +130,14 @@ RegisterResponse:
 LoginRequest:
   type: object
   required:
-    - email
+    - login
     - password
     - client_id
   properties:
-    email:
+    login:
       type: string
-      format: email
-      example: user@example.com
+      description: Login identifier (phone, email, or username)
+      example: "+998901234567"
     password:
       type: string
       format: password

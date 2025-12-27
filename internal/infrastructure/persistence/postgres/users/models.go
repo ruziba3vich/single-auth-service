@@ -9,10 +9,20 @@ import (
 )
 
 type User struct {
-	ID            pgtype.UUID        `json:"id"`
-	Email         string             `json:"email"`
-	PasswordHash  string             `json:"password_hash"`
-	EmailVerified bool               `json:"email_verified"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	ID          int64              `json:"id"`
+	Username    string             `json:"username"`
+	SahiyUserID pgtype.Int8        `json:"sahiy_user_id"`
+	Phone       string             `json:"phone"`
+	Password    []byte             `json:"password"`
+	Avatar      pgtype.Text        `json:"avatar"`
+	BirthDate   pgtype.Timestamptz `json:"birth_date"`
+	Gender      pgtype.Int2        `json:"gender"`
+	ForbidLogin pgtype.Int2        `json:"forbid_login"`
+	Email       pgtype.Text        `json:"email"`
+	ProfileID   pgtype.Int8        `json:"profile_id"`
+	RegisterIp  pgtype.Text        `json:"register_ip"`
+	LastloginIp pgtype.Text        `json:"lastlogin_ip"`
+	Status      int32              `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	LastLoginAt pgtype.Timestamptz `json:"last_login_at"`
 }

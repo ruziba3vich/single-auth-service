@@ -8,21 +8,20 @@ import (
 	"github.com/ruziba3vich/single-auth-service/pkg/jwt"
 )
 
-// Services holds all application services.
+// Services groups all application-layer services.
 type Services struct {
 	Auth  *services.AuthService
 	OAuth *services.OAuthService
 	Key   *services.KeyService
 }
 
-// Dependencies holds shared dependencies for services.
+// Dependencies are shared utilities used by multiple services.
 type Dependencies struct {
 	Hasher     *crypto.Argon2Hasher
 	TokenGen   *crypto.TokenGenerator
 	JWTManager *jwt.Manager
 }
 
-// NewDependencies creates shared dependencies from config.
 func NewDependencies(cfg *config.Config) *Dependencies {
 	return &Dependencies{
 		Hasher: crypto.NewArgon2Hasher(
@@ -37,16 +36,13 @@ func NewDependencies(cfg *config.Config) *Dependencies {
 	}
 }
 
-// NewServices creates all application services.
 func NewServices(repos *persistence.Repositories, deps *Dependencies, cfg *config.Config) *Services {
 	keyService := services.NewKeyService(repos.Key, cfg)
 
 	authService := services.NewAuthService(
 		repos.User,
-		repos.Identity,
 		repos.Client,
-		repos.Token,
-		repos.Device,
+		repos.Session,
 		repos.Key,
 		deps.Hasher,
 		deps.TokenGen,
@@ -58,8 +54,7 @@ func NewServices(repos *persistence.Repositories, deps *Dependencies, cfg *confi
 		repos.User,
 		repos.Client,
 		repos.AuthCode,
-		repos.Token,
-		repos.Device,
+		repos.Session,
 		repos.Key,
 		deps.Hasher,
 		deps.TokenGen,
